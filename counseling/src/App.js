@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
 import AdminDash from "./Dashboard/AdminDash";
+import WelcomePage from "./pages/WelcomePage";
 import Counselordash from "./Dashboard/Counselordash";
 import HODDash from "./Dashboard/HODDash";
 import { ToastContainer, toast } from "react-toastify"; 
@@ -34,10 +35,16 @@ function App() {
     toast.info("You have logged out!");  // Trigger info toast on logout
   };
 
+  
+
   return (
+
+    
     <div>
+
+    
       <Routes>
-        <Route path="/" element={<Login onLogin={handleLogin} />} />
+        <Route path="/" element={<WelcomePage />} />
         <Route path="/login" element={<Login onLogin={handleLogin} />} />
         <Route path="/change-password" element={<ResetPassword />} />
         <Route path="/unauthorized" element={<div className="text-center mt-20 text-red-600">Unauthorized Access</div>} />

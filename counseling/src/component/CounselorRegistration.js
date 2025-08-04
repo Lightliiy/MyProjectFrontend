@@ -1,45 +1,61 @@
-import React, { useState } from 'react';
-import { UserPlus } from 'lucide-react';
-import axios from 'axios';
-import { toast, ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import React, { useState } from "react";
+import { UserPlus } from "lucide-react";
+import axios from "axios";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 function CounselorRegistration() {
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    maxCaseload: '',
-    department: ''
+    name: "",
+    email: "",
+    password: "", // make sure this is raw password, NOT hashed
+    maxCaseload: "",
+    department: "",
   });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Optional: Validate password length or strength here
+
     try {
-      const response = await axios.post('http://localhost:8080/api/counselors/add', formData);
-      if (response.status === 200) {
-        toast.success('Counselor registered successfully!', {
+      const response = await axios.post(
+        "http://localhost:8080/api/counselors/add",
+        formData
+      );
+
+      if (response.status >= 200 && response.status < 300) {
+        toast.success("Counselor registered successfully!", {
           position: "top-right",
           autoClose: 3000,
         });
+
+        // Clear form fields after success
         setFormData({
-          name: '',
-          email: '',
-          maxCaseload: '',
-          department: ''
+          name: "",
+          email: "",
+          password: "",
+          maxCaseload: "",
+          department: "",
         });
       }
     } catch (error) {
-      toast.error('Error registering counselor. Please try again.', {
-        position: "top-right",
-        autoClose: 3000,
-      });
+      // Show server error message or a generic message
+      toast.error(
+        error.response?.data?.message ||
+          "Error registering counselor. Please try again.",
+        {
+          position: "top-right",
+          autoClose: 3000,
+        }
+      );
     }
   };
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
   };
 
@@ -59,7 +75,9 @@ function CounselorRegistration() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Full Name
+              </label>
               <input
                 type="text"
                 name="name"
@@ -70,7 +88,9 @@ function CounselorRegistration() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email
+              </label>
               <input
                 type="email"
                 name="email"
@@ -81,7 +101,22 @@ function CounselorRegistration() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Max Caseload</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Password
+              </label>
+              <input
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                className="w-full border rounded-lg px-3 py-2"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Max Caseload
+              </label>
               <input
                 type="number"
                 name="maxCaseload"
@@ -91,7 +126,9 @@ function CounselorRegistration() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Department
+              </label>
               <input
                 type="text"
                 name="department"

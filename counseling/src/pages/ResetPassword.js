@@ -1,15 +1,17 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 function ResetPassword() {
   const [formData, setFormData] = useState({
-    email: "",
-    newPassword: "",
-    confirmPassword: "",
+    email: "",           // To identify the user
+    currentPassword: "", // Old password
+    newPassword: "",     // New password
+    confirmPassword: "", // Confirm new password
   });
-  const [errorMessage, setErrorMessage] = useState("");
+
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -17,37 +19,51 @@ function ResetPassword() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    const { email, currentPassword, newPassword, confirmPassword } = formData;
 
-    if (!formData.email || !formData.newPassword || !formData.confirmPassword) {
-      setErrorMessage("All fields are required");
+    if (!email || !currentPassword || !newPassword || !confirmPassword) {
+      toast.error("All fields are required", { position: "top-right" });
       return;
     }
 
-    if (formData.newPassword !== formData.confirmPassword) {
-      setErrorMessage("Passwords do not match");
+    if (newPassword !== confirmPassword) {
+      toast.error("New passwords do not match", { position: "top-right" });
       return;
     }
 
-    setErrorMessage("");
-    toast.success("Password reset successful!", { position: "top-center" });
-    setTimeout(() => {
-      navigate("/login");
-    }, 2000);
+    try {
+      const response = await axios.put(
+        "http://localhost:8080/api/counselors/reset-password",
+        { email, currentPassword, newPassword }
+      );
+
+      toast.success(response.data.message || "Password reset successfully", {
+        position: "top-right",
+      });
+
+      setTimeout(() => {
+        navigate("/login");
+      }, 2000);
+    } catch (error) {
+      toast.error(
+        error.response?.data?.error || "Failed to reset password",
+        { position: "top-right" }
+      );
+    }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-blue-200 to-purple-200 px-4">
       <ToastContainer />
-      <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
-        <h2 className="text-3xl font-extrabold text-center text-gray-900 mb-6">
+      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md animate-fade-in">
+        <h2 className="text-2xl font-bold text-indigo-700 text-center mb-6">
           Reset Password
         </h2>
-        {errorMessage && (
-          <p className="text-red-600 mb-4 text-center font-medium">{errorMessage}</p>
-        )}
+
         <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Email to identify user */}
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">
               Email
@@ -58,11 +74,28 @@ function ResetPassword() {
               placeholder="Enter your email"
               value={formData.email}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
-              autoComplete="email"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
               required
             />
           </div>
+
+          {/* Current Password */}
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-700">
+              Current Password
+            </label>
+            <input
+              type="password"
+              name="currentPassword"
+              placeholder="Enter your current password"
+              value={formData.currentPassword}
+              onChange={handleChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              required
+            />
+          </div>
+
+          {/* New Password */}
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">
               New Password
@@ -73,14 +106,15 @@ function ResetPassword() {
               placeholder="Enter new password"
               value={formData.newPassword}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
-              autoComplete="new-password"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
               required
             />
           </div>
+
+          {/* Confirm New Password */}
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">
-              Confirm Password
+              Confirm New Password
             </label>
             <input
               type="password"
@@ -88,27 +122,39 @@ function ResetPassword() {
               placeholder="Confirm new password"
               value={formData.confirmPassword}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
-              autoComplete="new-password"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
               required
             />
           </div>
+
           <button
             type="submit"
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-md shadow-md transition"
+            className="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition duration-200"
           >
             Reset Password
           </button>
         </form>
-        <div className="text-center mt-6">
+
+        <div className="text-center mt-4">
           <p
             onClick={() => navigate("/login")}
-            className="text-indigo-600 hover:text-indigo-800 cursor-pointer font-medium transition"
+            className="text-indigo-600 hover:underline cursor-pointer"
           >
             Back to Login
           </p>
         </div>
       </div>
+
+      {/* CSS Animations */}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+          animation: fadeIn 1s ease-out;
+        }
+      `}</style>
     </div>
   );
 }

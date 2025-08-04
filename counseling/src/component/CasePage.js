@@ -1,21 +1,65 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
+import axios from "axios";
 
 function CasePage() {
   const [cases, setCases] = useState([]);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
 
-  // Filtered cases based on filter and search
-  const filteredCases = cases.filter((case_) => {
-    if (filter !== "all" && case_.status.toLowerCase() !== filter) {
-      return false;
+  const baseUrl = "http://localhost:8080/api/hod";
+
+  useEffect(() => {
+    const fetchCases = async () => {
+      try {
+        let url = `${baseUrl}/all-cases`;
+        if (filter === "pending") url = `${baseUrl}/pending-cases`;
+        else if (filter === "escalated") url = `${baseUrl}/escalated-cases`;
+
+        const response = await axios.get(url);
+        setCases(response.data);
+      } catch (error) {
+        console.error("Error fetching cases:", error);
+      }
+    };
+
+    fetchCases();
+  }, [filter]);
+
+  // Filter client-side for search
+  const filteredCases = cases.filter((c) =>
+    c.studentName.toLowerCase().includes(search.toLowerCase())
+  );
+
+  // Escalate case to HOD (student → HOD)
+  async function escalateCase(caseId) {
+    try {
+      await axios.post(`${baseUrl}/escalate-case/${caseId}`);
+      alert("Case escalated successfully!");
+      setCases((prev) =>
+        prev.map((c) => (c.id === caseId ? { ...c, status: "ESCALATED" } : c))
+      );
+    } catch (err) {
+      alert("Failed to escalate case.");
+      console.error(err);
     }
-    if (search && !case_.student.toLowerCase().includes(search.toLowerCase())) {
-      return false;
+  }
+
+  // Escalate case from HOD to Admin
+  const escalateToAdmin = async (caseId) => {
+    try {
+      await axios.post(`${baseUrl}/escalate-to-admin/${caseId}`);
+      alert("Case escalated to Admin!");
+      setCases((prev) =>
+        prev.map((c) =>
+          c.id === caseId ? { ...c, status: "ESCALATED_TO_ADMIN" } : c
+        )
+      );
+    } catch (err) {
+      alert("Failed to escalate case to Admin.");
+      console.error(err);
     }
-    return true;
-  });
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 py-10 px-4">
@@ -87,16 +131,13 @@ function CasePage() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Case ID
+                    ID
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     Student
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Counselor
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Issue Type
+                    Case Details
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     Status
@@ -113,21 +154,20 @@ function CasePage() {
                       {case_.id}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {case_.student}
+                      {case_.studentName}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {case_.counselor}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {case_.issueType}
+                      {case_.caseDetails}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          case_.status === "Pending"
+                          case_.status === "PENDING"
                             ? "bg-yellow-100 text-yellow-800"
-                            : case_.status === "Escalated"
+                            : case_.status === "ESCALATED"
                             ? "bg-red-100 text-red-800"
+                            : case_.status === "ESCALATED_TO_ADMIN"
+                            ? "bg-purple-100 text-purple-800"
                             : "bg-green-100 text-green-800"
                         }`}
                       >
@@ -138,9 +178,26 @@ function CasePage() {
                       <button className="text-indigo-600 hover:text-indigo-800 font-medium">
                         View Details
                       </button>
-                      <button className="text-red-600 hover:text-red-800 font-medium">
-                        Escalate
-                      </button>
+
+                      {/* Button for student → HOD escalation */}
+                      {case_.status === "PENDING" && (
+                        <button
+                          onClick={() => escalateCase(case_.id)}
+                          className="text-red-600 hover:text-red-800 font-medium"
+                        >
+                          Escalate to HOD
+                        </button>
+                      )}
+
+                      {/* Button for HOD → Admin escalation */}
+                      {case_.status === "ESCALATED" && (
+                        <button
+                          onClick={() => escalateToAdmin(case_.id)}
+                          className="text-purple-600 hover:text-purple-800 font-medium"
+                        >
+                          Escalate to Admin
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

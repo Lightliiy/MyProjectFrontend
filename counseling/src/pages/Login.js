@@ -7,15 +7,16 @@ import "react-toastify/dist/ReactToastify.css";
 function Login({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
 
     if (!email || !password) {
-      setError("Please fill in all fields");
+      toast.error("Please fill in all fields", {
+        position: "top-right",
+        autoClose: 3000,
+      });
       return;
     }
 
@@ -26,45 +27,51 @@ function Login({ onLogin }) {
       );
 
       const data = response.data;
-      console.log("Response from backend:", data);
-
-      // Expecting data = { role: "counselor", user: { ... } }
-      const userRole = data.role?.toUpperCase(); // Normalize to uppercase
+      const userRole = data.role?.toUpperCase();
       const userInfo = data.user;
 
       if (userRole && userInfo) {
-        // Update user state in App
         onLogin({ ...userInfo, role: userRole });
+        localStorage.setItem("counselorEmail", userInfo.email);
 
-        toast.success(`Welcome, ${userRole}`, { position: "top-center" });
-
-        // Redirect to the role-specific dashboard
-        navigate(`/dashboard/${userRole.toLowerCase()}`);
+        // Delay navigation by 1.5 seconds so the toast can be seen
+        setTimeout(() => {
+          navigate(`/dashboard/${userRole.toLowerCase()}`);
+        }, 1700);
       } else {
-        setError(
-          `Login failed: invalid user data. Received: ${JSON.stringify(data)}`
-        );
+        toast.error(`Login failed: invalid user data`, {
+          position: "top-right",
+        });
       }
     } catch (err) {
-      if (err.response) {
-        setError(err.response.data.message || "Login failed");
-        console.error("Backend error:", err.response.data);
-      } else {
-        setError("Login failed: network or server error");
-        console.error("Error:", err.message);
-      }
+      const errMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        "Login failed";
+      toast.error(errMsg, {
+        position: "top-right",
+        autoClose: 3000,
+      });
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-indigo-200">
-      <ToastContainer />
-      <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md">
-        <h2 className="text-2xl font-bold mb-6 text-center text-indigo-700">
-          Login
-        </h2>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-blue-200 to-purple-200">
+      {/* ToastContainer with explicit position */}
+      <ToastContainer position="top-right" newestOnTop />
 
-        {error && <p className="text-red-600 mb-4 text-center">{error}</p>}
+      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md animate-fade-in">
+        <div className="text-center mb-6">
+          <img
+            src="https://cdn-icons-png.flaticon.com/512/4202/4202843.png"
+            alt="Login Icon"
+            className="w-16 h-16 mx-auto mb-2 animate-float"
+          />
+          <h2 className="text-2xl font-bold text-indigo-700">Login</h2>
+          <p className="text-gray-500 text-sm mt-1">
+            Sign in to access your dashboard
+          </p>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -106,12 +113,36 @@ function Login({ onLogin }) {
         <div className="text-center mt-4">
           <p
             onClick={() => navigate("/change-password")}
-            className="text-indigo-600 hover:underline mt-2 cursor-pointer"
+            className="text-indigo-600 hover:underline cursor-pointer"
           >
             Forgot password? Change Password
           </p>
+          <p
+            onClick={() => navigate("/")}
+            className="text-sm text-gray-500 hover:text-indigo-500 mt-2 cursor-pointer"
+          >
+            ← Back to Home
+          </p>
         </div>
       </div>
+
+      {/* CSS animations */}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-8px); }
+        }
+        .animate-fade-in {
+          animation: fadeIn 1s ease-out;
+        }
+        .animate-float {
+          animation: float 3s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   );
 }

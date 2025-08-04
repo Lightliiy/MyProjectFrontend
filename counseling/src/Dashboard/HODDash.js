@@ -165,7 +165,8 @@ const HODApp = () => {
   const renderContent = () => {
     switch (activePage) {
       case 'dashboard':
-        return <HODDashboardOverview />;
+        // Just show welcome text here instead of the usual dashboard content
+        return <h2 className="text-xl font-semibold">Welcome </h2>;
       case 'register':
         return <CounselorRegistration />;
       case 'cases':
@@ -178,7 +179,6 @@ const HODApp = () => {
   };
 
   const pageTitles = {
-    dashboard: 'Department Overview',
     register: 'Register Counselor',
     cases: 'Case Management',
     settings: 'Settings'
@@ -190,7 +190,10 @@ const HODApp = () => {
       <Header toggleSidebar={() => setSidebarOpen(!sidebarOpen)} profileImage={profileImage} onProfileImageClick={() => setActivePage('settings')} />
       <main className={`transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-20'} pt-20 pb-16 p-6`}>
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-2xl font-bold mb-6">{pageTitles[activePage]}</h1>
+          {/* Show title only if not dashboard */}
+          {activePage !== 'dashboard' && (
+            <h1 className="text-2xl font-bold mb-6">{pageTitles[activePage]}</h1>
+          )}
           {renderContent()}
         </div>
       </main>

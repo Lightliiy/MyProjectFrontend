@@ -1,40 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
-function Settings() {
-  const [counselor, setCounselor] = useState(null);
+function Settings({ counselor, setCounselor }) {
   const [name, setName] = useState('');
   const [profileImage, setProfileImage] = useState('');
-  const [newSlot, setNewSlot] = useState('');
   const [slots, setSlots] = useState([]);
+  const [newSlot, setNewSlot] = useState('');
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedTime, setSelectedTime] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const counselorId = localStorage.getItem('counselorId');
-    if (!counselorId) {
+    if (!counselor?.id) {
       setError('No logged-in counselor ID found');
       return;
     }
 
-    fetch(`http://localhost:8080/api/counselors/${counselorId}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`Failed to fetch counselor: ${res.status}`);
-        return res.json();
-      })
-      .then((data) => {
-        setCounselor(data);
-        setName(data.name || '');
-        setProfileImage(data.profileImage || '');
-        setSlots(data.availableSlots || []);
-        setError('');
-      })
-      .catch((err) => {
-        console.error(err);
-        setError('Failed to load counselor data.');
-      });
-  }, []);
+    setName(counselor.name || '');
+    setProfileImage(counselor.profileImage || '');
+    setSlots(counselor.availableSlots || []);
+  }, [counselor]);
 
-  if (!counselor) {
-    return error ? <p className="text-red-600">{error}</p> : <p>Loading...</p>;
+  if (!counselor?.id) {
+    return <p className="text-red-600">{error}</p>;
   }
 
   const updateProfile = () => {
@@ -60,7 +49,7 @@ function Settings() {
 
   const addSlot = () => {
     const trimmed = newSlot.trim();
-    if (!trimmed) return alert('Please enter a slot.');
+    if (!trimmed) return alert('Please select date and time.');
     if (slots.includes(trimmed)) return alert('This slot already exists.');
 
     fetch(`http://localhost:8080/api/counselors/${counselor.id}/slots/add`, {
@@ -73,8 +62,12 @@ function Settings() {
         return res.text();
       })
       .then(() => {
-        setSlots([...slots, trimmed]);
+        const updatedSlots = [...slots, trimmed];
+        setSlots(updatedSlots);
         setNewSlot('');
+        setSelectedDate(null);
+        setSelectedTime('');
+        setCounselor({ ...counselor, availableSlots: updatedSlots });
       })
       .catch((err) => {
         console.error(err);
@@ -83,23 +76,26 @@ function Settings() {
   };
 
   const removeSlot = (slotToRemove) => {
-    fetch(`http://localhost:8080/api/counselors/${counselor.id}/slots/remove`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(slotToRemove),
+  fetch(`http://localhost:8080/api/counselors/${counselor.id}/slots/remove`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'text/plain' },
+    body: slotToRemove,
+  })
+    .then((res) => {
+      if (!res.ok) throw new Error('Failed to remove slot');
+      return res.text();
     })
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to remove slot');
-        return res.text();
-      })
-      .then(() => {
-        setSlots(slots.filter((slot) => slot !== slotToRemove));
-      })
-      .catch((err) => {
-        console.error(err);
-        alert('Failed to remove slot.');
-      });
-  };
+    .then(() => {
+      const updatedSlots = slots.filter((slot) => slot !== slotToRemove);
+      setSlots(updatedSlots);
+      setCounselor({ ...counselor, availableSlots: updatedSlots });
+    })
+    .catch((err) => {
+      console.error(err);
+      alert('Failed to remove slot.');
+    });
+};
+
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -108,6 +104,18 @@ function Settings() {
     const reader = new FileReader();
     reader.onloadend = () => setProfileImage(reader.result);
     reader.readAsDataURL(file);
+  };
+
+  const handleTimeChange = (e) => {
+    const time = e.target.value;
+    setSelectedTime(time);
+
+    if (selectedDate && time) {
+      const dateTime = new Date(
+        selectedDate.toDateString() + ' ' + time
+      ).toISOString();
+      setNewSlot(dateTime);
+    }
   };
 
   return (
@@ -145,17 +153,40 @@ function Settings() {
       </div>
 
       <h3 className="text-xl font-semibold mb-2">Available Slots</h3>
-      <div className="flex gap-2 mb-4">
-        <input
-          type="text"
-          value={newSlot}
-          onChange={(e) => setNewSlot(e.target.value)}
-          placeholder="e.g., Mon 10-12"
-          className="flex-1 p-2 border rounded-md"
+
+      <div className="flex flex-col sm:flex-row gap-2 mb-4">
+        <DatePicker
+          selected={selectedDate}
+          onChange={(date) => {
+            setSelectedDate(date);
+            setSelectedTime('');
+            setNewSlot('');
+          }}
+          dateFormat="yyyy-MM-dd"
+          placeholderText="Pick a date"
+          className="p-2 border rounded-md"
         />
+
+        <select
+          value={selectedTime}
+          onChange={handleTimeChange}
+          className="p-2 border rounded-md"
+          disabled={!selectedDate}
+        >
+          <option value="">Select time</option>
+          <option value="09:00">09:00</option>
+          <option value="10:00">10:00</option>
+          <option value="11:00">11:00</option>
+          <option value="12:00">12:00</option>
+          <option value="14:00">14:00</option>
+          <option value="15:00">15:00</option>
+          <option value="16:00">16:00</option>
+        </select>
+
         <button
           onClick={addSlot}
-          className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition"
+          disabled={!newSlot}
+          className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition disabled:bg-gray-400"
         >
           Add
         </button>
@@ -166,11 +197,8 @@ function Settings() {
       ) : (
         <ul className="space-y-2">
           {slots.map((slot, index) => (
-            <li
-              key={index}
-              className="flex justify-between p-2 bg-indigo-100 rounded-md"
-            >
-              <span>{slot}</span>
+            <li key={index} className="flex justify-between p-2 bg-indigo-100 rounded-md">
+              <span>{new Date(slot).toLocaleString()}</span>
               <button
                 onClick={() => removeSlot(slot)}
                 className="text-red-600 hover:text-red-800"

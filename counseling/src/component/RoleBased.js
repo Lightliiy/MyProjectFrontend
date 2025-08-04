@@ -26,6 +26,11 @@ function App() {
   };
 
   if (loggedInUser) {
+  return <RoleBased role={loggedInUser.role} counselorId={loggedInUser.id} />;
+}
+
+
+  if (loggedInUser) {
     return <RoleBased role={loggedInUser.role} />;
   }
 
