@@ -6,10 +6,11 @@ import "react-toastify/dist/ReactToastify.css";
 
 function ResetPassword() {
   const [formData, setFormData] = useState({
-    email: "",           // To identify the user
-    currentPassword: "", // Old password
-    newPassword: "",     // New password
-    confirmPassword: "", // Confirm new password
+    email: "",
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+    role: "counselor", // default role
   });
 
   const navigate = useNavigate();
@@ -21,7 +22,7 @@ function ResetPassword() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const { email, currentPassword, newPassword, confirmPassword } = formData;
+    const { email, currentPassword, newPassword, confirmPassword, role } = formData;
 
     if (!email || !currentPassword || !newPassword || !confirmPassword) {
       toast.error("All fields are required", { position: "top-right" });
@@ -34,10 +35,12 @@ function ResetPassword() {
     }
 
     try {
-      const response = await axios.put(
-        "http://localhost:8080/api/counselors/reset-password",
-        { email, currentPassword, newPassword }
-      );
+      const endpoint =
+        role === "counselor"
+          ? "http://localhost:8080/api/counselors/reset-password"
+          : "http://localhost:8080/api/hod/reset-password";
+
+      const response = await axios.put(endpoint, { email, currentPassword, newPassword });
 
       toast.success(response.data.message || "Password reset successfully", {
         position: "top-right",
@@ -47,10 +50,9 @@ function ResetPassword() {
         navigate("/login");
       }, 2000);
     } catch (error) {
-      toast.error(
-        error.response?.data?.error || "Failed to reset password",
-        { position: "top-right" }
-      );
+      toast.error(error.response?.data?.error || "Failed to reset password", {
+        position: "top-right",
+      });
     }
   };
 
@@ -63,7 +65,23 @@ function ResetPassword() {
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Email to identify user */}
+          {/* Role selector */}
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-700">
+              Role
+            </label>
+            <select
+              name="role"
+              value={formData.role}
+              onChange={handleChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            >
+              <option value="counselor">Counselor</option>
+              <option value="hod">HOD</option>
+            </select>
+          </div>
+
+          {/* Email */}
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">
               Email
@@ -145,7 +163,6 @@ function ResetPassword() {
         </div>
       </div>
 
-      {/* CSS Animations */}
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(20px); }

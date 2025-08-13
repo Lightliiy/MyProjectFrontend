@@ -1,211 +1,367 @@
 import React, { useState, useEffect } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, X, Loader, Search, ArrowRight, Eye, Trash2, ArrowUpCircle } from "lucide-react";
 import axios from "axios";
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 function CasePage() {
-  const [cases, setCases] = useState([]);
+  const [bookings, setBookings] = useState([]);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [studentDetails, setStudentDetails] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [comment, setComment] = useState("");
+  const [isStudentDetailsLoading, setIsStudentDetailsLoading] = useState(false);
 
   const baseUrl = "http://localhost:8080/api/hod";
+  const studentUrl = "http://localhost:8080/api/students";
+  const bookingUrl = "http://localhost:8080/api/bookings";
 
+  // Effect to fetch bookings based on the selected filter
   useEffect(() => {
-    const fetchCases = async () => {
+    const fetchBookings = async () => {
+      setLoading(true);
       try {
-        let url = `${baseUrl}/all-cases`;
-        if (filter === "pending") url = `${baseUrl}/pending-cases`;
-        else if (filter === "escalated") url = `${baseUrl}/escalated-cases`;
+        let url = `${baseUrl}/all-bookings`;
+        if (filter === "pending") url = `${baseUrl}/pending-bookings`;
+        else if (filter === "escalated") url = `${baseUrl}/escalated-bookings`;
 
         const response = await axios.get(url);
-        setCases(response.data);
+        setBookings(response.data);
       } catch (error) {
-        console.error("Error fetching cases:", error);
+        console.error("Error fetching bookings:", error);
+        toast.error("Failed to load bookings.");
+      } finally {
+        setLoading(false);
       }
     };
+    fetchBookings();
+  }, [filter, baseUrl]);
 
-    fetchCases();
-  }, [filter]);
-
-  // Filter client-side for search
-  const filteredCases = cases.filter((c) =>
-    c.studentName.toLowerCase().includes(search.toLowerCase())
+  // Filter bookings based on search input
+  const filteredBookings = bookings.filter((b) =>
+    (b.studentName ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
-  // Escalate case to HOD (student → HOD)
-  async function escalateCase(caseId) {
-    try {
-      await axios.post(`${baseUrl}/escalate-case/${caseId}`);
-      alert("Case escalated successfully!");
-      setCases((prev) =>
-        prev.map((c) => (c.id === caseId ? { ...c, status: "ESCALATED" } : c))
-      );
-    } catch (err) {
-      alert("Failed to escalate case.");
-      console.error(err);
-    }
-  }
+  // Handle viewing booking details and fetching student info
+  const handleViewDetails = async (booking) => {
+    setSelectedBooking(booking);
+    setIsModalOpen(true);
+    setStudentDetails(null);
+    setComment(booking.hodComment || "");
+    setIsStudentDetailsLoading(true);
 
-  // Escalate case from HOD to Admin
-  const escalateToAdmin = async (caseId) => {
     try {
-      await axios.post(`${baseUrl}/escalate-to-admin/${caseId}`);
-      alert("Case escalated to Admin!");
-      setCases((prev) =>
-        prev.map((c) =>
-          c.id === caseId ? { ...c, status: "ESCALATED_TO_ADMIN" } : c
-        )
-      );
-    } catch (err) {
-      alert("Failed to escalate case to Admin.");
-      console.error(err);
+      if (booking.studentId) {
+        // Fetch student details using the provided studentId
+        const encodedStudentId = encodeURIComponent(booking.studentId);
+        const res = await axios.get(`${studentUrl}/search?studentId=${encodedStudentId}`);
+        setStudentDetails(res.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch student details", error);
+      toast.error("Could not fetch student details.");
+      setStudentDetails({ error: "Failed to load" }); // Set a local error state for the UI
+    } finally {
+      setIsStudentDetailsLoading(false);
     }
   };
 
+  // Handle closing the modal
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedBooking(null);
+    setStudentDetails(null);
+    setComment("");
+  };
+
+  // Handle deleting a booking
+  const handleDeleteBooking = async (bookingId) => {
+    if (!window.confirm("Are you sure you want to delete this booking?")) return;
+    try {
+      await axios.delete(`${bookingUrl}/delete/${bookingId}`);
+      toast.success("Booking deleted successfully!");
+      setBookings((prev) => prev.filter((b) => b.id !== bookingId));
+      if (selectedBooking?.id === bookingId) handleCloseModal();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to delete booking.");
+    }
+  };
+
+  // Handle escalating a booking to HOD or Admin
+  const handleEscalate = async (bookingId, level) => {
+    const endpoint = level === "HOD"
+      ? `${baseUrl}/escalate-to-hod/${bookingId}`
+      : `${baseUrl}/escalate-to-admin/${bookingId}`;
+      
+    try {
+      if (level === "Admin") {
+        await axios.post(endpoint, null, { params: { hodComment: comment } });
+      } else {
+        await axios.post(endpoint);
+      }
+      
+      const newStatus = level === "HOD" ? "ESCALATED_TO_HOD" : "ESCALATED_TO_ADMIN";
+      toast.success(`Booking escalated to ${level}!`);
+
+      // Optimistically update the UI
+      const updatedBookings = bookings.map(b =>
+        b.id === bookingId
+          ? { ...b, status: newStatus, hodComment: comment }
+          : b
+      );
+      setBookings(updatedBookings);
+
+      if (isModalOpen && selectedBooking?.id === bookingId) {
+        const updatedSelectedBooking = updatedBookings.find(b => b.id === bookingId);
+        setSelectedBooking(updatedSelectedBooking);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(`Failed to escalate to ${level}.`);
+    }
+  };
+
+  // Helper function to render status badges
+  const renderStatusBadge = (status) => {
+    let colorClass = "";
+    switch (status) {
+      case "PENDING":
+        colorClass = "bg-yellow-100 text-yellow-800";
+        break;
+      case "ESCALATED_TO_HOD":
+        colorClass = "bg-red-100 text-red-800";
+        break;
+      case "ESCALATED_TO_ADMIN":
+        colorClass = "bg-purple-100 text-purple-800";
+        break;
+      default:
+        colorClass = "bg-gray-100 text-gray-800";
+    }
+    return (
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
+        {status.replace(/_/g, " ")}
+      </span>
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100 py-10 px-4">
-      <div className="max-w-6xl mx-auto bg-white p-6 rounded-lg shadow-md">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-          {/* Filter Buttons */}
-          <div className="flex space-x-2">
-            {["all", "pending", "escalated"].map((status) => (
-              <button
-                key={status}
-                onClick={() => setFilter(status)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                  filter === status
-                    ? status === "pending"
-                      ? "bg-yellow-100 text-yellow-700"
-                      : status === "escalated"
-                      ? "bg-red-100 text-red-700"
-                      : "bg-indigo-100 text-indigo-700"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                {status === "all"
-                  ? "All Cases"
-                  : status.charAt(0).toUpperCase() + status.slice(1)}
-              </button>
-            ))}
+    <div className="min-h-screen bg-gray-100 py-10 px-4 sm:px-6 lg:px-8">
+      <ToastContainer position="top-right" autoClose={3000} />
+      <div className="max-w-7xl mx-auto">
+        <div className="bg-white p-8 rounded-xl shadow-lg">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold text-gray-900">Booking Management</h1>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search by student name..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="block w-full rounded-md border-gray-300 pl-10 pr-4 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors"
+              />
+            </div>
+          </div>
+          
+          <div className="flex space-x-4 mb-6">
+            <button
+              onClick={() => setFilter("all")}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${filter === "all" ? "bg-indigo-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
+            >
+              All Bookings
+            </button>
+            <button
+              onClick={() => setFilter("pending")}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${filter === "pending" ? "bg-indigo-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
+            >
+              Pending Bookings
+            </button>
+            <button
+              onClick={() => setFilter("escalated")}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${filter === "escalated" ? "bg-indigo-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
+            >
+              Escalated Bookings
+            </button>
           </div>
 
-          {/* Search Bar */}
-          <div className="relative w-full md:w-64">
-            <input
-              type="text"
-              placeholder="Search student..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
-            />
-            <svg
-              className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
+          {loading ? (
+            <div className="flex justify-center items-center py-20">
+              <Loader className="h-12 w-12 animate-spin text-indigo-500" />
+            </div>
+          ) : filteredBookings.length === 0 ? (
+            <div className="text-center py-20">
+              <AlertTriangle className="h-16 w-16 text-gray-400 mx-auto mb-6" />
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No Bookings Found</h3>
+              <p className="text-gray-500">No bookings match your current filter and search criteria.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-lg shadow-sm border border-gray-200">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      ID
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Student
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Booking Summary
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredBookings.map((b) => (
+                    <tr key={b.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{b.id}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{b.studentName || "N/A"}</td>
+                      <td className="px-6 py-4 max-w-xs truncate text-sm text-gray-700">{b.description || "N/A"}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">{renderStatusBadge(b.status)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                        <button
+                          onClick={() => handleViewDetails(b)}
+                          className="text-indigo-600 hover:text-indigo-900 transition-colors"
+                          title="View Details"
+                        >
+                          <Eye className="h-5 w-5 inline-block" />
+                        </button>
+                        {b.status === "PENDING" && (
+                          <button
+                            onClick={() => handleEscalate(b.id, "HOD")}
+                            className="text-red-600 hover:text-red-900 transition-colors"
+                            title="Escalate to HOD"
+                          >
+                            <ArrowUpCircle className="h-5 w-5 inline-block" />
+                          </button>
+                        )}
+                        {b.status === "ESCALATED_TO_HOD" && (
+                          <button
+                            onClick={() => handleEscalate(b.id, "Admin")}
+                            className="text-purple-600 hover:text-purple-900 transition-colors"
+                            title="Escalate to Admin"
+                          >
+                            <ArrowRight className="h-5 w-5 inline-block" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDeleteBooking(b.id)}
+                          className="text-gray-600 hover:text-gray-900 transition-colors"
+                          title="Delete Booking"
+                        >
+                          <Trash2 className="h-5 w-5 inline-block" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isModalOpen && (
+        <div
+          className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4 transition-opacity duration-300"
+          onClick={handleCloseModal}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl max-w-2xl w-full relative transform transition-all scale-100 opacity-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-indigo-600 text-white p-6 rounded-t-xl flex justify-between items-center">
+              <h3 className="text-2xl font-bold">Booking Details</h3>
+              <button
+                className="text-indigo-200 hover:text-white transition-colors"
+                onClick={handleCloseModal}
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              {selectedBooking && (
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase">Booking ID</h4>
+                    <p className="text-gray-900 font-semibold text-lg">{selectedBooking.id}</p>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase">Booking Status</h4>
+                    {renderStatusBadge(selectedBooking.status)}
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500 uppercase">Booking Description</h4>
+                    <p className="text-gray-700 leading-relaxed mt-1">{selectedBooking.description}</p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label htmlFor="hod-comment" className="block text-sm font-medium text-gray-700">HOD Comment</label>
+                    <textarea
+                      id="hod-comment"
+                      name="hod-comment"
+                      rows="4"
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                    ></textarea>
+                    <p className="text-sm text-gray-500">Add any comments before escalating the booking.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-gray-50 px-6 py-4 rounded-b-xl border-t border-gray-200">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Student Information</h3>
+              {isStudentDetailsLoading ? (
+                <div className="flex items-center space-x-2 text-gray-500">
+                  <Loader className="h-4 w-4 animate-spin" />
+                  <span>Fetching student details...</span>
+                </div>
+              ) : studentDetails && studentDetails.error ? (
+                <div className="text-center text-red-500 p-4 border border-red-200 rounded-md">
+                  <p>Failed to load student details. Please try again.</p>
+                </div>
+              ) : studentDetails ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <h4 className="font-medium text-gray-500">Name</h4>
+                    <p className="text-gray-900">{studentDetails.name}</p>
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-gray-500">Email</h4>
+                    <p className="text-gray-900">{studentDetails.email}</p>
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-gray-500">Phone</h4>
+                    <p className="text-gray-900">{studentDetails.phone || "N/A"}</p>
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-gray-500">Registration ID</h4>
+                    <p className="text-gray-900">{studentDetails.studentId}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center text-gray-500 p-4 border border-gray-200 rounded-md">
+                  <p>No student details available.</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-
-        {/* Table or Empty State */}
-        {filteredCases.length === 0 ? (
-          <div className="text-center py-12">
-            <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              No Cases Found
-            </h3>
-            <p className="text-gray-500">
-              Cases that match your criteria will appear here.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full bg-white border border-gray-200 rounded-lg overflow-hidden">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Student
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Case Details
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredCases.map((case_) => (
-                  <tr key={case_.id} className="hover:bg-gray-50 transition">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {case_.id}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {case_.studentName}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {case_.caseDetails}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          case_.status === "PENDING"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : case_.status === "ESCALATED"
-                            ? "bg-red-100 text-red-800"
-                            : case_.status === "ESCALATED_TO_ADMIN"
-                            ? "bg-purple-100 text-purple-800"
-                            : "bg-green-100 text-green-800"
-                        }`}
-                      >
-                        {case_.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap space-x-2">
-                      <button className="text-indigo-600 hover:text-indigo-800 font-medium">
-                        View Details
-                      </button>
-
-                      {/* Button for student → HOD escalation */}
-                      {case_.status === "PENDING" && (
-                        <button
-                          onClick={() => escalateCase(case_.id)}
-                          className="text-red-600 hover:text-red-800 font-medium"
-                        >
-                          Escalate to HOD
-                        </button>
-                      )}
-
-                      {/* Button for HOD → Admin escalation */}
-                      {case_.status === "ESCALATED" && (
-                        <button
-                          onClick={() => escalateToAdmin(case_.id)}
-                          className="text-purple-600 hover:text-purple-800 font-medium"
-                        >
-                          Escalate to Admin
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

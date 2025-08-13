@@ -1,36 +1,44 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { FaEye, FaTimes, FaUser, FaSpinner, FaUsers } from "react-icons/fa";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 function Student({ counselorId }) {
   const [students, setStudents] = useState([]);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
   const [viewStudent, setViewStudent] = useState(null);
 
-  // Log counselorId and fetch students when it changes
+  // Fetch students when counselorId changes
   useEffect(() => {
-    console.log("Student component: counselorId changed to:", counselorId);
     if (counselorId) {
       fetchAssignedStudents();
     } else {
-      // Clear students if counselorId is missing or null
       setStudents([]);
-      setErrorMessage("No counselorId provided");
+      setIsLoading(false);
+      toast.error("No counselor ID found. Please log in.");
     }
   }, [counselorId]);
 
   const fetchAssignedStudents = async () => {
+    setIsLoading(true);
     try {
-      console.log("Fetching assigned students for counselorId:", counselorId);
       const res = await axios.get(
         `http://localhost:8080/api/students/by-counselor-id/${counselorId}`
       );
-      console.log("Fetched assigned students:", res.data);
       setStudents(res.data);
-      setErrorMessage("");
+      // Optional: Show a success toast on successful fetch
+      // if (res.data.length > 0) {
+      //   toast.success("Students loaded successfully.");
+      // } else {
+      //   toast.info("You have no assigned students yet.");
+      // }
     } catch (error) {
       console.error("Failed to fetch assigned students", error);
-      setErrorMessage("Failed to load assigned students.");
+      toast.error("Failed to load assigned students.");
       setStudents([]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -42,100 +50,119 @@ function Student({ counselorId }) {
 
   return (
     <div className="max-w-7xl mx-auto p-6 font-sans">
-      <h1 className="text-4xl font-bold text-gray-900 mb-6">Assigned Students</h1>
-
-      {errorMessage && (
-        <div className="mb-4 px-4 py-3 bg-red-100 text-red-800 rounded shadow-sm">
-          {errorMessage}
-        </div>
-      )}
-
-      <div className="overflow-auto max-h-[80vh] border rounded shadow">
-        <table className="w-full border-collapse">
-          <thead className="bg-gray-200 sticky top-0">
-            <tr>
-              <th className="border-b border-gray-300 text-left px-4 py-3 text-sm font-semibold text-gray-700">
-                Student ID
-              </th>
-              <th className="border-b border-gray-300 text-left px-4 py-3 text-sm font-semibold text-gray-700">
-                Name
-              </th>
-              <th className="border-b border-gray-300 text-left px-4 py-3 text-sm font-semibold text-gray-700">
-                Email
-              </th>
-              <th className="border-b border-gray-300 text-left px-4 py-3 text-sm font-semibold text-gray-700">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {students.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="text-center py-10 text-gray-500">
-                  No assigned students available.
-                </td>
-              </tr>
-            ) : (
-              students.map((s) => (
-                <tr
-                  key={s.id}
-                  className="hover:bg-gray-50 border-b border-gray-100 cursor-pointer"
-                >
-                  <td className="px-4 py-3 text-sm">{s.studentId}</td>
-                  <td className="px-4 py-3 text-sm">{s.name}</td>
-                  <td className="px-4 py-3 text-sm">{s.email}</td>
-                  <td className="px-4 py-3 space-x-2">
-                    <button
-                      onClick={() => handleView(s)}
-                      className="px-3 py-1 rounded bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition"
-                    >
-                      View
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <ToastContainer position="top-right" autoClose={3000} />
+      <div className="flex items-center mb-6">
+        <FaUsers className="text-4xl text-indigo-600 mr-4" />
+        <h1 className="text-4xl font-bold text-gray-900">Assigned Students</h1>
       </div>
 
-      {/* View Modal */}
+      {/* Loading State */}
+      {isLoading ? (
+        <div className="flex justify-center items-center h-64 text-indigo-600">
+          <FaSpinner className="animate-spin text-4xl mr-3" />
+          <p className="text-xl">Loading students...</p>
+        </div>
+      ) : (
+        <>
+          <div className="overflow-x-auto bg-white rounded-lg shadow-md">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Student ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Email
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {students.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="text-center py-10 text-gray-500 italic">
+                      No assigned students available.
+                    </td>
+                  </tr>
+                ) : (
+                  students.map((s) => (
+                    <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{s.studentId}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{s.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{s.email}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button
+                          onClick={() => handleView(s)}
+                          className="flex items-center justify-center px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition-colors"
+                        >
+                          <FaEye className="mr-2" /> View
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {/* View Student Modal */}
       {viewStudent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white rounded p-6 max-w-md w-full shadow-lg">
-            <h2 className="text-2xl font-bold mb-4">Student Details</h2>
-            <p>
-              <strong>Student ID:</strong> {viewStudent.studentId}
-            </p>
-            <p>
-              <strong>Name:</strong> {viewStudent.name}
-            </p>
-            <p>
-              <strong>Email:</strong> {viewStudent.email}
-            </p>
-            <p>
-              <strong>Department:</strong> {viewStudent.department}
-            </p>
-            <p>
-              <strong>Year Level:</strong> {viewStudent.yearLevel}
-            </p>
-            <p>
-              <strong>Phone:</strong> {viewStudent.phone}
-            </p>
-            {viewStudent.profileImage && (
-              <p>
-                <strong>Profile Image:</strong>
-                <br />
-                <img
-                  src={viewStudent.profileImage}
-                  alt="Profile"
-                  className="w-24 h-24 rounded mt-2"
-                />
-              </p>
-            )}
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="relative bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
             <button
               onClick={closeViewModal}
-              className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition"
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition"
+              aria-label="Close modal"
+            >
+              <FaTimes className="text-2xl" />
+            </button>
+            <div className="flex items-center mb-6">
+              <FaUser className="text-3xl text-indigo-600 mr-4" />
+              <h2 className="text-2xl font-bold text-gray-800">Student Details</h2>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+              {viewStudent.profileImage && (
+                <div className="flex-shrink-0">
+                  <img
+                    src={viewStudent.profileImage}
+                    alt={`${viewStudent.name}'s Profile`}
+                    className="w-32 h-32 rounded-full object-cover border-4 border-gray-200 shadow-md"
+                  />
+                </div>
+              )}
+              <div className="text-gray-700">
+                <p className="mb-2">
+                  <strong className="block text-gray-900">Name:</strong> {viewStudent.name}
+                </p>
+                <p className="mb-2">
+                  <strong className="block text-gray-900">Student ID:</strong> {viewStudent.studentId}
+                </p>
+                <p className="mb-2">
+                  <strong className="block text-gray-900">Email:</strong> {viewStudent.email}
+                </p>
+                <p className="mb-2">
+                  <strong className="block text-gray-900">Department:</strong> {viewStudent.department}
+                </p>
+                <p className="mb-2">
+                  <strong className="block text-gray-900">Year Level:</strong> {viewStudent.yearLevel}
+                </p>
+                <p>
+                  <strong className="block text-gray-900">Phone:</strong> {viewStudent.phone}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={closeViewModal}
+              className="mt-6 w-full px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition"
             >
               Close
             </button>
