@@ -13,9 +13,11 @@ import "react-toastify/dist/ReactToastify.css";
 // ProtectedRoute component to handle role-based access
 const ProtectedRoute = ({ user, allowedRoles, children }) => {
   if (!user) {
+    // Redirect to login if user is not authenticated
     return <Navigate to="/login" replace />;
   }
   if (!allowedRoles.includes(user.role)) {
+    // Redirect to unauthorized page if role is not allowed
     return <Navigate to="/unauthorized" replace />;
   }
   return children;
@@ -29,7 +31,20 @@ function App() {
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        const userData = JSON.parse(storedUser);
+        // Add a check to ensure user object is valid
+        if (userData && userData.id && userData.role) {
+          setUser(userData);
+        } else {
+          // If the stored user data is invalid, clear it
+          localStorage.removeItem("user");
+          console.error("Invalid user data in localStorage. Cleared.");
+        }
+      } catch (error) {
+        console.error("Failed to parse user data from localStorage", error);
+        localStorage.removeItem("user");
+      }
     }
   }, []);
 
@@ -100,12 +115,12 @@ function App() {
           path="/dashboard/counselor"
           element={
             <ProtectedRoute user={user} allowedRoles={["COUNSELOR"]}>
-              {/* Correctly pass both user and setUser */}
               <Counselordash user={user} onLogout={handleLogout} setUser={setUser} />
             </ProtectedRoute>
           }
         />
         <Route path="/video-call" element={<VideoCall />} />
+        <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </div>
   );

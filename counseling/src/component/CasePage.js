@@ -1,8 +1,69 @@
 import React, { useState, useEffect } from "react";
-import { AlertTriangle, X, Loader, Search, ArrowRight, Eye, Trash2, ArrowUpCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  X,
+  Loader,
+  Search,
+  ArrowRight,
+  Eye,
+  ArrowUpCircle,
+  MessageCircle,
+  Archive,
+  User,
+  Mail,
+  Phone,
+  Clipboard,
+  Calendar,
+  Clock,
+  CheckCircle
+} from "lucide-react";
 import axios from "axios";
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+
+// Status badge component
+const StatusBadge = ({ status }) => {
+  let colorClass = "";
+  let icon = null;
+  switch (status) {
+    case "PENDING":
+      colorClass = "bg-yellow-100 text-yellow-800";
+      icon = <Clock className="h-3 w-3 mr-1" />;
+      break;
+    case "ESCALATED_TO_HOD":
+      colorClass = "bg-red-100 text-red-800";
+      icon = <ArrowUpCircle className="h-3 w-3 mr-1" />;
+      break;
+    case "ESCALATED_TO_ADMIN":
+      colorClass = "bg-purple-100 text-purple-800";
+      icon = <ArrowUpCircle className="h-3 w-3 mr-1" />;
+      break;
+    case "CLOSED":
+      colorClass = "bg-green-100 text-green-800";
+      icon = <CheckCircle className="h-3 w-3 mr-1" />;
+      break;
+    default:
+      colorClass = "bg-gray-100 text-gray-800";
+      icon = null;
+  }
+  return (
+    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium capitalize ${colorClass}`}>
+      {icon}
+      {status.toLowerCase().replace(/_/g, " ")}
+    </span>
+  );
+};
+
+// Info Card component for the modal
+const InfoCard = ({ title, value, icon }) => (
+  <div className="bg-gray-50 p-4 rounded-lg flex items-center space-x-3 shadow-sm">
+    <div className="text-indigo-500">{icon}</div>
+    <div>
+      <h5 className="font-medium text-gray-500 text-sm">{title}</h5>
+      <p className="text-gray-900 font-semibold">{value || "N/A"}</p>
+    </div>
+  </div>
+);
 
 function CasePage() {
   const [bookings, setBookings] = useState([]);
@@ -19,7 +80,6 @@ function CasePage() {
   const studentUrl = "http://localhost:8080/api/students";
   const bookingUrl = "http://localhost:8080/api/bookings";
 
-  // Effect to fetch bookings based on the selected filter
   useEffect(() => {
     const fetchBookings = async () => {
       setLoading(true);
@@ -38,14 +98,12 @@ function CasePage() {
       }
     };
     fetchBookings();
-  }, [filter, baseUrl]);
+  }, [filter]);
 
-  // Filter bookings based on search input
   const filteredBookings = bookings.filter((b) =>
     (b.studentName ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
-  // Handle viewing booking details and fetching student info
   const handleViewDetails = async (booking) => {
     setSelectedBooking(booking);
     setIsModalOpen(true);
@@ -55,7 +113,6 @@ function CasePage() {
 
     try {
       if (booking.studentId) {
-        // Fetch student details using the provided studentId
         const encodedStudentId = encodeURIComponent(booking.studentId);
         const res = await axios.get(`${studentUrl}/search?studentId=${encodedStudentId}`);
         setStudentDetails(res.data);
@@ -63,13 +120,12 @@ function CasePage() {
     } catch (error) {
       console.error("Failed to fetch student details", error);
       toast.error("Could not fetch student details.");
-      setStudentDetails({ error: "Failed to load" }); // Set a local error state for the UI
+      setStudentDetails({ error: "Failed to load" });
     } finally {
       setIsStudentDetailsLoading(false);
     }
   };
 
-  // Handle closing the modal
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedBooking(null);
@@ -77,25 +133,25 @@ function CasePage() {
     setComment("");
   };
 
-  // Handle deleting a booking
-  const handleDeleteBooking = async (bookingId) => {
-    if (!window.confirm("Are you sure you want to delete this booking?")) return;
+  const handleArchiveBooking = async (bookingId) => {
+    if (!window.confirm("Are you sure you want to archive this booking?")) return;
+
     try {
-      await axios.delete(`${bookingUrl}/delete/${bookingId}`);
-      toast.success("Booking deleted successfully!");
+      await axios.put(`${bookingUrl}/${bookingId}/archive`);
+      toast.success("Booking archived successfully!");
       setBookings((prev) => prev.filter((b) => b.id !== bookingId));
       if (selectedBooking?.id === bookingId) handleCloseModal();
     } catch (err) {
       console.error(err);
-      toast.error("Failed to delete booking.");
+      toast.error("Failed to archive booking.");
     }
   };
 
-  // Handle escalating a booking to HOD or Admin
   const handleEscalate = async (bookingId, level) => {
-    const endpoint = level === "HOD"
-      ? `${baseUrl}/escalate-to-hod/${bookingId}`
-      : `${baseUrl}/escalate-to-admin/${bookingId}`;
+    const endpoint =
+      level === "HOD"
+        ? `${baseUrl}/escalate-to-hod/${bookingId}`
+        : `${baseUrl}/escalate-to-admin/${bookingId}`;
       
     try {
       if (level === "Admin") {
@@ -107,7 +163,6 @@ function CasePage() {
       const newStatus = level === "HOD" ? "ESCALATED_TO_HOD" : "ESCALATED_TO_ADMIN";
       toast.success(`Booking escalated to ${level}!`);
 
-      // Optimistically update the UI
       const updatedBookings = bookings.map(b =>
         b.id === bookingId
           ? { ...b, status: newStatus, hodComment: comment }
@@ -125,244 +180,211 @@ function CasePage() {
     }
   };
 
-  // Helper function to render status badges
-  const renderStatusBadge = (status) => {
-    let colorClass = "";
-    switch (status) {
-      case "PENDING":
-        colorClass = "bg-yellow-100 text-yellow-800";
-        break;
-      case "ESCALATED_TO_HOD":
-        colorClass = "bg-red-100 text-red-800";
-        break;
-      case "ESCALATED_TO_ADMIN":
-        colorClass = "bg-purple-100 text-purple-800";
-        break;
-      default:
-        colorClass = "bg-gray-100 text-gray-800";
-    }
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
-        {status.replace(/_/g, " ")}
-      </span>
-    );
-  };
-
   return (
-    <div className="min-h-screen bg-gray-100 py-10 px-4 sm:px-6 lg:px-8">
-      <ToastContainer position="top-right" autoClose={3000} />
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-white p-8 rounded-xl shadow-lg">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">Booking Management</h1>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-gray-400" />
+    <>
+      <div className="min-h-screen bg-gray-50 py-10 px-4 sm:px-6 lg:px-8">
+        <ToastContainer position="top-right" autoClose={3000} />
+        <div className="max-w-7xl mx-auto">
+          {/* Header and Controls */}
+          <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-200">
+            <div className="flex justify-between items-center mb-6 flex-col sm:flex-row space-y-4 sm:space-y-0">
+              <h1 className="text-3xl font-extrabold text-gray-900">Case Management</h1>
+              <div className="flex flex-col sm:flex-row space-y-2 sm:space-x-4 sm:space-y-0 w-full sm:w-auto">
+                <div className="relative flex-grow">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search by student name..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="block w-full rounded-full border-gray-300 pl-10 pr-4 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors"
+                  />
+                </div>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setFilter("all")}
+                    className={`px-4 py-2 rounded-full font-medium transition-colors text-sm ${filter === "all" ? "bg-indigo-600 text-white shadow-md" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setFilter("pending")}
+                    className={`px-4 py-2 rounded-full font-medium transition-colors text-sm ${filter === "pending" ? "bg-indigo-600 text-white shadow-md" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
+                  >
+                    Pending
+                  </button>
+                  <button
+                    onClick={() => setFilter("escalated")}
+                    className={`px-4 py-2 rounded-full font-medium transition-colors text-sm ${filter === "escalated" ? "bg-indigo-600 text-white shadow-md" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
+                  >
+                    Escalated
+                  </button>
+                </div>
               </div>
-              <input
-                type="text"
-                placeholder="Search by student name..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="block w-full rounded-md border-gray-300 pl-10 pr-4 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors"
-              />
             </div>
-          </div>
-          
-          <div className="flex space-x-4 mb-6">
-            <button
-              onClick={() => setFilter("all")}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${filter === "all" ? "bg-indigo-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
-            >
-              All Bookings
-            </button>
-            <button
-              onClick={() => setFilter("pending")}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${filter === "pending" ? "bg-indigo-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
-            >
-              Pending Bookings
-            </button>
-            <button
-              onClick={() => setFilter("escalated")}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${filter === "escalated" ? "bg-indigo-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
-            >
-              Escalated Bookings
-            </button>
           </div>
 
-          {loading ? (
-            <div className="flex justify-center items-center py-20">
-              <Loader className="h-12 w-12 animate-spin text-indigo-500" />
-            </div>
-          ) : filteredBookings.length === 0 ? (
-            <div className="text-center py-20">
-              <AlertTriangle className="h-16 w-16 text-gray-400 mx-auto mb-6" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No Bookings Found</h3>
-              <p className="text-gray-500">No bookings match your current filter and search criteria.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-lg shadow-sm border border-gray-200">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      ID
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Student
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Booking Summary
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredBookings.map((b) => (
-                    <tr key={b.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{b.id}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{b.studentName || "N/A"}</td>
-                      <td className="px-6 py-4 max-w-xs truncate text-sm text-gray-700">{b.description || "N/A"}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">{renderStatusBadge(b.status)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                        <button
-                          onClick={() => handleViewDetails(b)}
-                          className="text-indigo-600 hover:text-indigo-900 transition-colors"
-                          title="View Details"
-                        >
-                          <Eye className="h-5 w-5 inline-block" />
-                        </button>
-                        {b.status === "PENDING" && (
-                          <button
-                            onClick={() => handleEscalate(b.id, "HOD")}
-                            className="text-red-600 hover:text-red-900 transition-colors"
-                            title="Escalate to HOD"
-                          >
-                            <ArrowUpCircle className="h-5 w-5 inline-block" />
-                          </button>
-                        )}
-                        {b.status === "ESCALATED_TO_HOD" && (
-                          <button
-                            onClick={() => handleEscalate(b.id, "Admin")}
-                            className="text-purple-600 hover:text-purple-900 transition-colors"
-                            title="Escalate to Admin"
-                          >
-                            <ArrowRight className="h-5 w-5 inline-block" />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleDeleteBooking(b.id)}
-                          className="text-gray-600 hover:text-gray-900 transition-colors"
-                          title="Delete Booking"
-                        >
-                          <Trash2 className="h-5 w-5 inline-block" />
-                        </button>
-                      </td>
+          {/* Bookings Table */}
+          <div className="mt-8">
+            {loading ? (
+              <div className="flex flex-col justify-center items-center py-20 bg-white rounded-2xl shadow-xl">
+                <Loader className="h-16 w-16 animate-spin text-indigo-500" />
+                <p className="mt-4 text-gray-600 font-medium">Loading cases...</p>
+              </div>
+            ) : filteredBookings.length === 0 ? (
+              <div className="text-center py-20 bg-white rounded-2xl shadow-xl">
+                <AlertTriangle className="h-16 w-16 text-gray-400 mx-auto mb-6" />
+                <h3 className="text-2xl font-semibold text-gray-900 mb-2">No Bookings Found</h3>
+                <p className="text-gray-500">No bookings match your current filter and search criteria.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl shadow-xl border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">ID</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Student</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Summary</th>
+                      <th className="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredBookings.map((b) => (
+                      <tr key={b.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{b.id}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{b.studentName || "N/A"}</td>
+                        <td className="px-6 py-4 max-w-sm truncate text-sm text-gray-700">{b.description || "N/A"}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">{<StatusBadge status={b.status} />}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-2">
+                          <button
+                            onClick={() => handleViewDetails(b)}
+                            className="text-indigo-600 hover:text-indigo-900 transition-colors p-2 rounded-full hover:bg-gray-200"
+                            title="View Details"
+                          >
+                            <Eye className="h-5 w-5" />
+                          </button>
+                          <button
+                            onClick={() => handleArchiveBooking(b.id)}
+                            className="text-gray-600 hover:text-gray-900 transition-colors p-2 rounded-full hover:bg-gray-200"
+                            title="Archive Booking"
+                          >
+                            <Archive className="h-5 w-5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Modal */}
+          {isModalOpen && (
+            <div
+              className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4 animate-fade-in"
+              onClick={handleCloseModal}
+            >
+              <div
+                className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full relative transform transition-all scale-100 animate-slide-up"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="bg-indigo-600 text-white p-6 rounded-t-3xl flex justify-between items-center">
+                  <h3 className="text-2xl font-bold">Booking Details: #{selectedBooking?.id}</h3>
+                  <button
+                    className="text-indigo-200 hover:text-white transition-colors"
+                    onClick={handleCloseModal}
+                  >
+                    <X className="h-7 w-7" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 p-8">
+                  {/* Left: Booking & Action Info */}
+                  <div className="space-y-6">
+                    <h4 className="text-xl font-bold text-gray-900 border-b pb-2">Booking Information</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <InfoCard title="Student Name" value={selectedBooking?.studentName} icon={<User />} />
+                      <InfoCard title="Booking Date" value={selectedBooking?.date ? new Date(selectedBooking.date).toLocaleDateString() : "N/A"} icon={<Calendar />} />
+                      <InfoCard title="Booking Time" value={selectedBooking?.time || "N/A"} icon={<Clock />} />
+                      <InfoCard title="Status" value={selectedBooking?.status.toLowerCase().replace(/_/g, " ")} icon={<Clipboard />} />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-bold text-gray-900 mb-2">Booking Description</h4>
+                      <div className="bg-gray-50 p-4 rounded-lg shadow-inner border border-gray-200">
+                        <p className="text-gray-700">{selectedBooking?.description || "No description provided."}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-bold text-gray-900 mb-2">HOD Comment</h4>
+                      <div className="relative">
+                        <MessageCircle className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                        <textarea
+                          id="hod-comment"
+                          name="hod-comment"
+                          rows="4"
+                          className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm pl-10 pr-4 py-2 focus:border-indigo-500 focus:ring-indigo-500 transition-colors"
+                          value={comment}
+                          onChange={(e) => setComment(e.target.value)}
+                          placeholder="Add a comment here..."
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">This comment will be attached when escalating the booking to Admin.</p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+                      {selectedBooking?.status === "PENDING" && (
+                        <button
+                          onClick={() => handleEscalate(selectedBooking.id, "HOD")}
+                          className="flex-1 inline-flex justify-center items-center px-4 py-3 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                        >
+                          <ArrowUpCircle className="h-5 w-5 mr-2" /> Escalate to HOD
+                        </button>
+                      )}
+                      {selectedBooking?.status === "ESCALATED_TO_HOD" && (
+                        <button
+                          onClick={() => handleEscalate(selectedBooking.id, "Admin")}
+                          className="flex-1 inline-flex justify-center items-center px-4 py-3 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors"
+                        >
+                          <ArrowRight className="h-5 w-5 mr-2" /> Escalate to Admin
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right: Student Info */}
+                  <div className="space-y-6 bg-gray-100 p-6 rounded-2xl">
+                    <h4 className="text-xl font-bold text-gray-900 border-b border-gray-300 pb-2">Student Information</h4>
+                    {isStudentDetailsLoading ? (
+                      <div className="flex flex-col items-center justify-center py-8 space-y-2 text-gray-500">
+                        <Loader className="h-8 w-8 animate-spin" />
+                        <span className="font-medium">Fetching details...</span>
+                      </div>
+                    ) : studentDetails && studentDetails.error ? (
+                      <div className="text-center text-red-500 p-4 border border-red-200 rounded-lg bg-red-50">
+                        <p>Failed to load student details. Please try again.</p>
+                      </div>
+                    ) : studentDetails ? (
+                      <div className="space-y-4">
+                        <InfoCard title="Student Name" value={studentDetails.name} icon={<User />} />
+                        <InfoCard title="Email" value={studentDetails.email} icon={<Mail />} />
+                        <InfoCard title="Phone" value={studentDetails.phone} icon={<Phone />} />
+                        <InfoCard title="Registration ID" value={studentDetails.studentId} icon={<Clipboard />} />
+                      </div>
+                    ) : (
+                      <div className="text-center text-gray-500 p-4 border border-gray-200 rounded-lg bg-white">
+                        <p>No student details available for this booking.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
       </div>
-
-      {isModalOpen && (
-        <div
-          className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4 transition-opacity duration-300"
-          onClick={handleCloseModal}
-        >
-          <div
-            className="bg-white rounded-xl shadow-2xl max-w-2xl w-full relative transform transition-all scale-100 opacity-100"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="bg-indigo-600 text-white p-6 rounded-t-xl flex justify-between items-center">
-              <h3 className="text-2xl font-bold">Booking Details</h3>
-              <button
-                className="text-indigo-200 hover:text-white transition-colors"
-                onClick={handleCloseModal}
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-            
-            <div className="p-6">
-              {selectedBooking && (
-                <div className="space-y-6">
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-500 uppercase">Booking ID</h4>
-                    <p className="text-gray-900 font-semibold text-lg">{selectedBooking.id}</p>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-500 uppercase">Booking Status</h4>
-                    {renderStatusBadge(selectedBooking.status)}
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-500 uppercase">Booking Description</h4>
-                    <p className="text-gray-700 leading-relaxed mt-1">{selectedBooking.description}</p>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label htmlFor="hod-comment" className="block text-sm font-medium text-gray-700">HOD Comment</label>
-                    <textarea
-                      id="hod-comment"
-                      name="hod-comment"
-                      rows="4"
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                    ></textarea>
-                    <p className="text-sm text-gray-500">Add any comments before escalating the booking.</p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="bg-gray-50 px-6 py-4 rounded-b-xl border-t border-gray-200">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">Student Information</h3>
-              {isStudentDetailsLoading ? (
-                <div className="flex items-center space-x-2 text-gray-500">
-                  <Loader className="h-4 w-4 animate-spin" />
-                  <span>Fetching student details...</span>
-                </div>
-              ) : studentDetails && studentDetails.error ? (
-                <div className="text-center text-red-500 p-4 border border-red-200 rounded-md">
-                  <p>Failed to load student details. Please try again.</p>
-                </div>
-              ) : studentDetails ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <h4 className="font-medium text-gray-500">Name</h4>
-                    <p className="text-gray-900">{studentDetails.name}</p>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-500">Email</h4>
-                    <p className="text-gray-900">{studentDetails.email}</p>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-500">Phone</h4>
-                    <p className="text-gray-900">{studentDetails.phone || "N/A"}</p>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-gray-500">Registration ID</h4>
-                    <p className="text-gray-900">{studentDetails.studentId}</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center text-gray-500 p-4 border border-gray-200 rounded-md">
-                  <p>No student details available.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   );
 }
 

@@ -13,9 +13,15 @@ import {
   User,
   AlertTriangle,
   Loader,
+  BarChart2,
+  ClipboardList,
+  CheckCircle,
 } from "lucide-react";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+
+// Import recharts for the charts
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, Sector } from 'recharts';
 
 // Import your other components here
 import CounselorList from "../component/CounselorList";
@@ -23,6 +29,203 @@ import RegisteredStudent from "../component/RegisteredStudent";
 import StudentList from "../pages/StudentList";
 import AdminPanel from "../component/AdminPanel";
 import Register from "../pages/Register";
+
+
+
+const StatCard = ({ title, value, icon, color }) => (
+  <div className={`relative bg-white p-6 rounded-2xl shadow-lg border-t-4 ${color} transition-all duration-300 hover:shadow-xl transform hover:-translate-y-1`}>
+    <div className="absolute top-4 right-4 text-gray-200 opacity-60">
+      {icon}
+    </div>
+    <p className="text-sm font-medium text-gray-500">{title}</p>
+    <p className="text-5xl font-extrabold text-gray-900 mt-2">{value}</p>
+  </div>
+);
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+        <p className="font-bold text-gray-800">{label}</p>
+        <p className="text-gray-600">{`${payload[0].name}: ${payload[0].value}`}</p>
+      </div>
+    );
+  }
+  return null;
+};
+
+const PIE_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#6366F1'];
+
+const renderActiveShape = (props) => {
+  const { cx, cy, midAngle, innerRadius, outerRadius, startAngle, endAngle, fill, payload, percent, value } = props;
+  const RADIAN = Math.PI / 180;
+  const sin = Math.sin(-RADIAN * midAngle);
+  const cos = Math.cos(-RADIAN * midAngle);
+  const sx = cx + (outerRadius + 10) * cos;
+  const sy = cy + (outerRadius + 10) * sin;
+  const mx = cx + (outerRadius + 30) * cos;
+  const my = cy + (outerRadius + 30) * sin;
+  const ex = mx + (cos >= 0 ? 1 : -1) * 22;
+  const ey = my;
+  const textAnchor = cos >= 0 ? 'start' : 'end';
+
+  return (
+    <g>
+      <Sector
+        cx={cx}
+        cy={cy}
+        innerRadius={innerRadius}
+        outerRadius={outerRadius}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill={fill}
+      />
+      <Sector
+        cx={cx}
+        cy={cy}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        innerRadius={outerRadius + 6}
+        outerRadius={outerRadius + 10}
+        fill={fill}
+      />
+      <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill} fill="none" />
+      <circle cx={ex} cy={ey} r={2} fill={fill} stroke="none" />
+      <text x={ex + (cos >= 0 ? 1 : -1) * 12} y={ey} textAnchor={textAnchor} fill="#333">{`${payload.program} (${value})`}</text>
+      <text x={ex + (cos >= 0 ? 1 : -1) * 12} y={ey} dy={18} textAnchor={textAnchor} fill="#999">
+        {`(${(percent * 100).toFixed(2)}%)`}
+      </text>
+    </g>
+  );
+};
+
+function Dashboard() {
+  const [counts, setCounts] = useState({
+    totalStudents: 0,
+    totalCounselors: 0,
+    escalatedToAdminCases: 0,
+    casesByStatus: [],
+    studentsByProgram: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const onPieEnter = (_, index) => {
+    setActiveIndex(index);
+  };
+
+  useEffect(() => {
+    async function fetchCounts() {
+      try {
+        const response = await axios.get(
+          "http://localhost:8080/api/hod/summary-counts"
+        );
+        setCounts(response.data);
+      } catch (error) {
+        console.error("Failed to fetch summary counts:", error);
+        toast.error("Failed to load dashboard data.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchCounts();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-20">
+        <Loader className="h-12 w-12 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
+
+  return (
+    <section className="p-8 space-y-10 bg-gray-50 rounded-lg shadow-sm">
+      <h1 className="text-4xl font-extrabold text-gray-900 leading-tight">
+        Admin Dashboard<span className="text-indigo-600"></span>
+      </h1>
+      <p className="text-lg text-gray-600 max-w-2xl">
+        Comprehensive overview of key metrics and student data.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <StatCard
+          title="Total Students"
+          value={counts.totalStudents}
+          icon={<Users className="w-16 h-16" />}
+          color="border-indigo-500"
+        />
+        <StatCard
+          title="Total Counselors"
+          value={counts.totalCounselors}
+          icon={<Briefcase className="w-16 h-16" />}
+          color="border-green-500"
+        />
+        <StatCard
+          title="Escalated Booking"
+          value={counts.escalatedToAdminCases}
+          icon={<AlertTriangle className="w-16 h-16" />}
+          color="border-red-500"
+        />
+      </div>
+
+      ---
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Cases by Status Chart */}
+        <div className="bg-white p-8 rounded-2xl shadow-lg">
+          <h2 className="text-2xl font-bold mb-6 text-gray-800">Booking by Status</h2>
+          {counts.casesByStatus.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={counts.casesByStatus} margin={{ top: 20, right: 30, left: 0, bottom: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                <XAxis dataKey="status" stroke="#6B7280" tickMargin={10} />
+                <YAxis stroke="#6B7280" tickMargin={10} />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0,0,0,0.05)' }} />
+                <Legend verticalAlign="top" height={36} />
+                <Bar dataKey="count" name="Cases" fill="#3B82F6" barSize={40} radius={[10, 10, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-gray-500 text-center py-10">No booking data available.</p>
+          )}
+        </div>
+
+        {/* Students by Program Chart */}
+        <div className="bg-white p-8 rounded-2xl shadow-lg">
+          <h2 className="text-2xl font-bold mb-6 text-gray-800">Students by Program</h2>
+          {counts.studentsByProgram.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  activeIndex={activeIndex}
+                  activeShape={renderActiveShape}
+                  data={counts.studentsByProgram}
+                  dataKey="count"
+                  nameKey="program"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  fill="#8884d8"
+                  onMouseEnter={onPieEnter}
+                >
+                  {counts.studentsByProgram.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+                <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ paddingTop: 20 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-gray-500 text-center py-10">No student program data available.</p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 
 function Sidebar({ isOpen, toggleSidebar, activePage, setActivePage }) {
   const menuItems = [
@@ -61,7 +264,7 @@ function Sidebar({ isOpen, toggleSidebar, activePage, setActivePage }) {
               <li key={item.id}>
                 <button
                   onClick={() => setActivePage(item.id)}
-                  className={`w-full text-left flex items-center p-3 rounded-lg transition-colors duration-200 
+                  className={`w-full text-left flex items-center p-3 rounded-lg transition-colors duration-200
                     ${
                       activePage === item.id
                         ? "bg-indigo-700 text-white shadow-md"
@@ -82,6 +285,7 @@ function Sidebar({ isOpen, toggleSidebar, activePage, setActivePage }) {
     </aside>
   );
 }
+
 
 function Header({ toggleSidebar, onLogout, sidebarOpen }) {
   return (
@@ -115,83 +319,14 @@ function Header({ toggleSidebar, onLogout, sidebarOpen }) {
   );
 }
 
-function Dashboard() {
-  const [counts, setCounts] = useState({
-    totalStudents: 0,
-    totalCounselors: 0,
-    escalatedToAdminCases: 0,
-  });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchCounts() {
-      try {
-        const response = await axios.get(
-          "http://localhost:8080/api/hod/summary-counts"
-        );
-        setCounts(response.data);
-      } catch (error) {
-        console.error("Failed to fetch summary counts:", error);
-        toast.error("Failed to load dashboard data.");
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchCounts();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center py-20">
-        <Loader className="h-12 w-12 animate-spin text-indigo-600" />
-      </div>
-    );
-  }
-
-  return (
-    <section className="bg-gray-100 p-6 rounded-xl shadow-inner min-h-[calc(100vh-12rem)]">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Overview</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-lg shadow-md flex items-center space-x-4 transition-transform hover:scale-105">
-          <div className="flex-shrink-0 h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center">
-            <Users className="h-6 w-6 text-indigo-600" />
-          </div>
-          <div>
-            <h3 className="text-sm font-medium text-gray-500">Total Students</h3>
-            <p className="text-3xl font-bold text-gray-900">{counts.totalStudents}</p>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-md flex items-center space-x-4 transition-transform hover:scale-105">
-          <div className="flex-shrink-0 h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-            <Briefcase className="h-6 w-6 text-green-600" />
-          </div>
-          <div>
-            <h3 className="text-sm font-medium text-gray-500">Total Counselors</h3>
-            <p className="text-3xl font-bold text-gray-900">{counts.totalCounselors}</p>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-md flex items-center space-x-4 transition-transform hover:scale-105">
-          <div className="flex-shrink-0 h-12 w-12 rounded-full bg-red-100 flex items-center justify-center">
-            <AlertTriangle className="h-6 w-6 text-red-600" />
-          </div>
-          <div>
-            <h3 className="text-sm font-medium text-gray-500">Escalated Cases</h3>
-            <p className="text-3xl font-bold text-gray-900">{counts.escalatedToAdminCases}</p>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activePage, setActivePage] = useState("dashboard");
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    localStorage.clear(); // Clear session/local data on logout
-    navigate("/login"); // Redirect to login page
+    localStorage.clear();
+    navigate("/login");
   };
 
   const pageTitle = {
@@ -203,7 +338,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 antialiased">
-      <ToastContainer position="bottom-right" autoClose={3000} />
+      <ToastContainer position="top-right" autoClose={3000} />
       <Sidebar
         isOpen={sidebarOpen}
         toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
@@ -216,8 +351,6 @@ function App() {
           sidebarOpen ? "ml-64 lg:ml-64" : "ml-20 lg:ml-20"
         } pt-20 pb-8 px-4 sm:px-6 lg:px-8`}
       >
-        <h1 className="text-3xl font-extrabold text-gray-900 mb-6">{pageTitle[activePage]}</h1>
-
         {activePage === "dashboard" && <Dashboard />}
         {activePage === "register" && <RegisteredStudent />}
         {activePage === "counselors" && <CounselorList />}

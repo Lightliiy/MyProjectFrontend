@@ -3,11 +3,13 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { FaUserEdit, FaCalendarPlus, FaTrashAlt, FaSpinner } from 'react-icons/fa';
+import { FaUserEdit, FaCalendarPlus, FaTrashAlt, FaSpinner, FaEnvelope, FaLock } from 'react-icons/fa';
 
 function Settings({ user, setUser, userRole }) {
   const [name, setName] = useState('');
-  const [profileImage, setProfileImage] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [profileImage, setProfileImage] = useState(''); // State for the Base64 string
   const [slots, setSlots] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState('');
@@ -18,8 +20,9 @@ function Settings({ user, setUser, userRole }) {
   useEffect(() => {
     if (user?.id) {
       setName(user.name || '');
+      setEmail(user.email || '');
+      setPassword('');
       setProfileImage(user.profileImage || '');
-      // Only set slots for counselors
       if (userRole === 'COUNSELOR') {
         setSlots(user.availableSlots || []);
       }
@@ -34,25 +37,47 @@ function Settings({ user, setUser, userRole }) {
     );
   }
 
+  // Decide endpoint based on role
+  const getUpdateEndpoint = () => {
+    switch (userRole?.toUpperCase()) {
+      case 'COUNSELOR':
+        return `http://localhost:8080/api/counselors/update/${user.id}`;
+      case 'HOD':
+        return `http://localhost:8080/api/hod/update-profile/${user.id}`;
+      default:
+        return `http://localhost:8080/api/staff/update-profile/${user.id}`;
+    }
+  };
+
   const updateProfile = async () => {
     setIsSavingProfile(true);
     try {
-      const endpoint = userRole === 'COUNSELOR'
-        ? `http://localhost:8080/api/counselors/update/${user.id}`
-        : `http://localhost:8080/api/hod/update-profile/${user.id}`;
-      
+      const endpoint = getUpdateEndpoint();
+      const updatedData = {
+        ...user,
+        name,
+        email,
+        profileImage, // Send the Base64 string
+        ...(password && { password }),
+      };
+
       const response = await fetch(endpoint, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...user, name, profileImage }),
+        credentials: 'include',
+        body: JSON.stringify(updatedData),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update profile.');
+        throw new Error(`Failed to update profile. Status: ${response.status}`);
       }
+
       const data = await response.json();
-      setUser(data);
-      // Only set slots if the user is a counselor
+      const updatedUser = { ...data, role: userRole.toUpperCase() };
+
+      setUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+
       if (userRole === 'COUNSELOR') {
         setSlots(data.availableSlots || []);
       }
@@ -89,15 +114,20 @@ function Settings({ user, setUser, userRole }) {
       const response = await fetch(`http://localhost:8080/api/counselors/${user.id}/slots/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify([newSlotISO]),
       });
 
       if (!response.ok) {
         throw new Error('Failed to add slot.');
       }
+
       const updatedSlots = [...slots, newSlotISO];
       setSlots(updatedSlots);
-      setUser({ ...user, availableSlots: updatedSlots });
+      const updatedUser = { ...user, availableSlots: updatedSlots };
+      setUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+
       setSelectedDate(null);
       setSelectedTime('');
       toast.success('Slot added successfully!');
@@ -117,6 +147,7 @@ function Settings({ user, setUser, userRole }) {
       const response = await fetch(`http://localhost:8080/api/counselors/${user.id}/slots/remove`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'text/plain' },
+        credentials: 'include',
         body: slotToRemove,
       });
 
@@ -126,7 +157,10 @@ function Settings({ user, setUser, userRole }) {
 
       const updatedSlots = slots.filter((slot) => slot !== slotToRemove);
       setSlots(updatedSlots);
-      setUser({ ...user, availableSlots: updatedSlots });
+      const updatedUser = { ...user, availableSlots: updatedSlots };
+      setUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+
       toast.success('Slot removed successfully!');
     } catch (err) {
       console.error('Remove slot error:', err);
@@ -140,7 +174,7 @@ function Settings({ user, setUser, userRole }) {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => setProfileImage(reader.result);
+      reader.onloadend = () => setProfileImage(reader.result); 
       reader.readAsDataURL(file);
     }
   };
@@ -158,37 +192,68 @@ function Settings({ user, setUser, userRole }) {
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-8 mb-6">
           <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-gray-200">
             {profileImage ? (
-              <img
-                src={profileImage}
-                alt="Profile"
-                className="w-full h-full object-cover"
-              />
+              <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full bg-gray-200 flex items-center justify-center text-gray-500">
                 No Image
               </div>
             )}
           </div>
-          <div className="flex-grow w-full">
-            <label htmlFor="name-input" className="block text-sm font-medium text-gray-700 mb-1">
-              Name
-            </label>
-            <input
-              id="name-input"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
-            />
-            <label htmlFor="profile-image-upload" className="block text-sm font-medium text-gray-700 mt-4 mb-1">
-              Profile Image
-            </label>
-            <input
-              id="profile-image-upload"
-              type="file"
-              onChange={handleImageUpload}
-              className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-            />
+          <div className="flex-grow w-full space-y-4">
+            <div>
+              <label htmlFor="name-input" className="block text-sm font-medium text-gray-700 mb-1">
+                Name
+              </label>
+              <input
+                id="name-input"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+              />
+            </div>
+            <div>
+              <label htmlFor="email-input" className="block text-sm font-medium text-gray-700 mb-1">
+                Email
+              </label>
+              <div className="relative">
+                <FaEnvelope className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  id="email-input"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="password-input" className="block text-sm font-medium text-gray-700 mb-1">
+                Password (leave blank to keep unchanged)
+              </label>
+              <div className="relative">
+                <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  id="password-input"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="profile-image-upload" className="block text-sm font-medium text-gray-700 mb-1">
+                Profile Image
+              </label>
+              <input
+                id="profile-image-upload"
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+              />
+            </div>
           </div>
         </div>
 

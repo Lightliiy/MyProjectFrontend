@@ -94,7 +94,7 @@ const RegisteredStudent = () => {
 
     try {
       await axios.post('http://localhost:8080/api/students/register', studentData);
-      toast.success('Student registered successfully! 🎉');
+      toast.success('Student registered successfully!');
       // Reset form to its initial state
       setFormData({
         studentId: '',
@@ -117,7 +117,7 @@ const RegisteredStudent = () => {
   return (
     <div className="bg-gray-50 min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl w-full space-y-8 p-10 bg-white rounded-xl shadow-lg">
-        <ToastContainer position="bottom-center" autoClose={3000} />
+        <ToastContainer position="top-right" autoClose={3000} />
         
         {/* Header Section */}
         <div>
