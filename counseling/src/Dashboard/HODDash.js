@@ -9,6 +9,7 @@ import {
   Briefcase,
   ClipboardList,
   CheckCircle,
+  LogOut,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, Sector } from 'recharts';
 
@@ -195,7 +196,7 @@ const HODDashboardOverview = ({ data }) => {
 };
 
 
-const Sidebar = ({ isOpen, activePage, setActivePage }) => {
+const Sidebar = ({ isOpen, activePage, setActivePage, onLogout }) => {
   const menuItems = [
     { label: 'Dashboard', id: 'dashboard', icon: <BarChart2 className="h-5 w-5" /> },
     { label: 'Register Counselor', id: 'register', icon: <Users className="h-5 w-5" /> },
@@ -207,7 +208,7 @@ const Sidebar = ({ isOpen, activePage, setActivePage }) => {
     <aside
       className={`bg-indigo-900 text-white h-screen fixed top-0 left-0 transition-all duration-300 z-50 ${
         isOpen ? 'w-64' : 'w-20'
-      }`}
+      } flex flex-col`}
     >
       <div className="p-4 flex items-center h-16 border-b border-indigo-700">
         <span
@@ -221,7 +222,7 @@ const Sidebar = ({ isOpen, activePage, setActivePage }) => {
           <Menu className="h-6 w-6 ml-4" />
         </div>
       </div>
-      <nav className="p-4">
+      <nav className="p-4 flex-1 overflow-y-auto">
         <ul className="space-y-2">
           {menuItems.map((item) => (
             <li key={item.id}>
@@ -242,6 +243,15 @@ const Sidebar = ({ isOpen, activePage, setActivePage }) => {
           ))}
         </ul>
       </nav>
+      <div className="mt-auto p-4 border-t border-indigo-700">
+        <button
+          onClick={onLogout}
+          className="w-full flex items-center space-x-3 p-3 rounded-lg text-indigo-300 hover:bg-red-600 hover:text-white transition-colors"
+        >
+          <LogOut className="h-5 w-5" />
+          <span className={`transition-opacity duration-300 ${!isOpen && 'opacity-0 absolute'}`}>Logout</span>
+        </button>
+      </div>
     </aside>
   );
 };
@@ -370,23 +380,43 @@ const HODApp = () => {
     }
   }, []);
 
-  // Fetch notifications
+  // Fetch escalated-to-HOD bookings and surface as notifications
   useEffect(() => {
-    if (!user) return;
-    const fetchNotifications = async () => {
+    const fetchEscalated = async () => {
       try {
-        const res = await fetch(`http://localhost:8080/notifications/user?userId=${user.id}`);
-        if (!res.ok) throw new Error('Failed to fetch notifications');
+        const res = await fetch('http://localhost:8080/api/hod/escalated-bookings');
+        if (!res.ok) throw new Error('Failed to fetch escalated bookings');
         const data = await res.json();
-        setNotifications(data);
+        const toIso = (b) => {
+          try {
+            if (b?.date) {
+              const time = b?.time || '00:00';
+              return new Date(`${b.date}T${time}:00`).toISOString();
+            }
+            if (b?.scheduledDate) {
+              const time = b?.timeSlot || '00:00';
+              return new Date(`${b.scheduledDate}T${time}:00`).toISOString();
+            }
+          } catch {}
+          return new Date().toISOString();
+        };
+        const mapped = (Array.isArray(data) ? data : []).map((b) => ({
+          id: b.id,
+          title: `Escalated to HOD: ${b.studentName || 'Student'}`,
+          message: b.description || b.issueType || 'A booking has been escalated to HOD.',
+          timestamp: toIso(b),
+        }));
+        // Sort newest first
+        mapped.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        setNotifications(mapped);
       } catch (err) {
         console.error(err);
       }
     };
-    fetchNotifications();
-    const intervalId = setInterval(fetchNotifications, 10000);
+    fetchEscalated();
+    const intervalId = setInterval(fetchEscalated, 10000);
     return () => clearInterval(intervalId);
-  }, [user]);
+  }, []);
 
   // Fetch dashboard
   useEffect(() => {
@@ -432,7 +462,10 @@ const HODApp = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 font-sans antialiased">
-      <Sidebar isOpen={sidebarOpen} activePage={activePage} setActivePage={setActivePage} />
+      <Sidebar isOpen={sidebarOpen} activePage={activePage} setActivePage={setActivePage} onLogout={() => {
+        try { localStorage.removeItem('user'); } catch {}
+        window.location.href = '/login';
+      }} />
       <Header
         toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         profileImage={profileImage}

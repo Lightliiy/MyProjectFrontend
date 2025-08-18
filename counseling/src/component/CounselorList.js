@@ -151,7 +151,7 @@ function CounselorList() {
 
   return (
     <div className="min-h-screen bg-gray-100 py-10 px-4 sm:px-6 lg:px-8">
-      <ToastContainer position="bottom-right" autoClose={3000} />
+      <ToastContainer position="top-right" autoClose={3000} />
       <div className="max-w-7xl mx-auto space-y-8">
         
         {/* Header and Search */}
@@ -226,7 +226,7 @@ function CounselorList() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{counselor.email}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{counselor.department}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {counselor.assignedStudentsCount} / {counselor.maxCaseload}
+                            {counselor.assignedStudentsCount}  {counselor.maxCaseload}
                           </td>
                           <td className="px-6 py-4 text-center text-sm font-medium space-x-3 whitespace-nowrap">
                             <button onClick={() => handleViewClick(counselor)} className="text-indigo-600 hover:text-indigo-900 transition-colors p-2 rounded-full hover:bg-gray-200" title="View Assigned Students">

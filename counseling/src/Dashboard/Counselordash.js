@@ -75,8 +75,57 @@ function Sidebar({ isOpen, activePage, setActivePage, onLogout }) {
   );
 }
 
-function Header({ toggleSidebar, user }) {
-  const { name, profileImage } = user;
+function Header({ toggleSidebar, user, setActivePage }) {
+  const { name, profileImage, id } = user || {};
+
+  const [notifications, setNotifications] = useState([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+
+    let isCancelled = false;
+
+    const fetchNotifications = async () => {
+      try {
+        const res = await fetch(
+          `http://localhost:8080/api/bookings/counsel?counselorId=${id}`
+        );
+        const data = await res.json();
+        const active = Array.isArray(data)
+          ? data
+              .filter((n) => (n.status || "").trim().toUpperCase() !== "ARCHIVED")
+              .sort(
+                (a, b) =>
+                  new Date(b.scheduledDate) - new Date(a.scheduledDate) || b.id - a.id
+              )
+          : [];
+        if (!isCancelled) setNotifications(active);
+      } catch (e) {
+        // fail silently in header
+      }
+    };
+
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 15000);
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+    };
+  }, [id]);
+
+  const pendingCount = notifications.filter(
+    (n) => (n.status || "").trim().toUpperCase() === "PENDING"
+  ).length;
+
+  // ✅ Updated: Only clears locally, does not archive
+  const handleClearAll = () => {
+    if (notifications.length === 0) return;
+    setIsClearing(true);
+    setNotifications([]); // just clear locally
+    setTimeout(() => setIsClearing(false), 500);
+  };
 
   return (
     <header className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-gray-200 flex items-center px-6 z-20 shadow-sm">
@@ -96,6 +145,65 @@ function Header({ toggleSidebar, user }) {
       </button>
 
       <div className="flex-1 flex justify-end items-center space-x-3">
+        <div className="relative">
+          <button
+            onClick={() => setIsOpen((v) => !v)}
+            aria-label="Notifications"
+            className="relative p-2 rounded-full hover:bg-gray-100 focus:outline-none text-gray-600 hover:text-gray-900"
+          >
+            <FaBell className="w-6 h-6" />
+            {pendingCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-semibold rounded-full px-1.5 py-0.5">
+                {pendingCount}
+              </span>
+            )}
+          </button>
+
+          {isOpen && (
+            <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-xl z-30">
+              <div className="px-4 py-2 border-b font-semibold text-gray-800 flex items-center justify-between">
+                <span>Booking Requests</span>
+                <button
+                  onClick={handleClearAll}
+                  disabled={isClearing || notifications.length === 0}
+                  className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                >
+                  {isClearing ? "Clearing..." : "Clear"}
+                </button>
+              </div>
+              <ul className="max-h-80 overflow-auto">
+                {notifications.length === 0 ? (
+                  <li className="px-4 py-3 text-sm text-gray-500">No notifications</li>
+                ) : (
+                  notifications.slice(0, 6).map((n) => (
+                    <li key={n.id} className="px-4 py-3 hover:bg-gray-50">
+                      <div className="text-sm font-medium text-gray-800">
+                        {n.studentName || "Student"}
+                        <span className="ml-2 text-xs text-gray-500">
+                          {(n.status || "").toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        {n.issueType} • {n.scheduledDate}{" "}
+                        {n.timeSlot ? `• ${n.timeSlot}` : ""}
+                      </div>
+                    </li>
+                  ))
+                )}
+              </ul>
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  if (setActivePage) setActivePage("notifications");
+                }}
+                className="w-full text-center text-sm text-indigo-600 hover:bg-indigo-50 py-2 rounded-b-lg"
+              >
+                View all
+              </button>
+            </div>
+          )}
+        </div>
+
         <span className="font-semibold text-gray-800">{name || "Counselor"}</span>
         {profileImage ? (
           <img
@@ -112,6 +220,7 @@ function Header({ toggleSidebar, user }) {
     </header>
   );
 }
+
 
 const IssueTypeBarChart = ({ issueStats }) => {
   const total = Object.values(issueStats).reduce((a, b) => a + b, 0);
@@ -330,7 +439,7 @@ function Counselordash({ user, onLogout, setUser }) {
         className="flex-1 flex flex-col transition-all duration-300"
         style={{ marginLeft: sidebarOpen ? "16rem" : "5rem" }}
       >
-        <Header toggleSidebar={toggleSidebar} user={user} />
+        <Header toggleSidebar={toggleSidebar} user={user} setActivePage={setActivePage} />
         <MainContent activePage={activePage} user={user} setUser={setUser} />
       </div>
     </div>
