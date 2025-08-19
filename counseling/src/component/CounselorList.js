@@ -111,17 +111,22 @@ function CounselorList() {
     });
   };
 
-  const handleUpdate = async (id) => {
-    try {
-      await axios.put(`http://localhost:8080/api/counselors/update/${id}`, editFormData);
-      setEditingId(null);
-      toast.success('Counselor updated successfully!');
-      fetchCounselors();
-    } catch (error) {
-      console.error('Error updating counselor:', error);
-      toast.error('Error updating counselor.');
-    }
-  };
+ const handleUpdate = async (id) => {
+  try {
+    const payload = {
+      ...editFormData,
+      maxCaseload: Number(editFormData.maxCaseload), 
+    };
+    await axios.put(`http://localhost:8080/api/counselors/update/${id}`, payload);
+    setEditingId(null);
+    toast.success('Counselor updated successfully!');
+    fetchCounselors();
+  } catch (error) {
+    console.error('Error updating counselor:', error);
+    toast.error('Error updating counselor.');
+  }
+};
+
 
   const handleViewClick = async (counselor) => {
     setSelectedCounselor(counselor);

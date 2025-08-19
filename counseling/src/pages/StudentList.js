@@ -2,12 +2,13 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { Edit2, Trash2, X, Search, Loader2, Users } from 'lucide-react';
+import { Edit2, Trash2, X, Search, Loader2, Users, ChevronDown, PlusCircle } from 'lucide-react';
 
 const StudentList = () => {
   const [students, setStudents] = useState([]);
   const [counselors, setCounselors] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedDepartment, setSelectedDepartment] = useState('');
   const [editStudent, setEditStudent] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -88,29 +89,85 @@ const StudentList = () => {
     }
   };
 
-  const filteredStudents = students.filter((student) =>
-    (student.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (student.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (student.studentId || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Get unique departments for the filter dropdown
+  const uniqueDepartments = [...new Set(students.map(student => student.department))].filter(Boolean);
+
+  const filteredStudents = students.filter((student) => {
+    const matchesSearchTerm =
+      (student.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (student.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (student.studentId || '').toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesDepartment = selectedDepartment === '' || student.department === selectedDepartment;
+
+    return matchesSearchTerm && matchesDepartment;
+  });
+
+  // New function to handle the Add Student button click
+  const handleAssignCounselor = async () => {
+  if (!selectedDepartment) {
+    toast.warning('Please select a department before assigning counselors.');
+    return;
+  }
+
+  try {
+    const response = await axios.post(
+      `http://localhost:8080/api/students/assign/department/${selectedDepartment}`
+    );
+
+    toast.success(response.data || 'Students successfully assigned!');
+    fetchStudents(); // refresh list after assignment
+  } catch (error) {
+    console.error('Assign failed:', error);
+    toast.error('Failed to assign students.');
+  }
+};
+
 
   return (
     <div className="bg-gray-50 min-h-screen py-8 px-4 sm:px-6 lg:px-8">
       <ToastContainer position="top-right" autoClose={3000} />
       <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-lg p-8">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-4 sm:space-y-0">
           <h2 className="text-3xl font-bold text-gray-900">Students</h2>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
+          <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
+            <div className="relative flex-grow">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search by name, ID, or email..."
+                className="block w-full rounded-md border-gray-300 pl-10 pr-4 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-            <input
-              type="text"
-              placeholder="Search by name, ID, or email..."
-              className="block w-full rounded-md border-gray-300 pl-10 pr-4 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+            <div className="relative flex-grow sm:flex-grow-0">
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                <ChevronDown className="h-5 w-5 text-gray-400" />
+              </div>
+              <select
+                className="block w-full rounded-md border-gray-300 pr-10 pl-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-colors bg-white appearance-none"
+                value={selectedDepartment}
+                onChange={(e) => setSelectedDepartment(e.target.value)}
+              >
+                <option value="">All Departments</option>
+                {uniqueDepartments.map((department) => (
+                  <option key={department} value={department}>
+                    {department}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {/* New Add Student Button */}
+            <button
+              onClick={handleAssignCounselor}
+              className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              <PlusCircle className="h-5 w-5 mr-2" />
+              Assign Counselor
+            </button>
           </div>
         </div>
 
@@ -122,7 +179,7 @@ const StudentList = () => {
           <div className="text-center py-20">
             <Users className="h-16 w-16 text-gray-400 mx-auto mb-6" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No Students Found</h3>
-            <p className="text-gray-500">Add new students or adjust your search to find records.</p>
+            <p className="text-gray-500">Add new students or adjust your search and filters to find records.</p>
           </div>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-gray-200">
@@ -190,7 +247,7 @@ const StudentList = () => {
                 </select>
               </div>
             </div>
-            
+
             <div className="bg-gray-50 px-6 py-4 flex justify-end space-x-3 rounded-b-xl">
               <button type="button" onClick={() => setEditStudent(null)} className="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 transition-colors font-medium">Cancel</button>
               <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors font-medium">Save Changes</button>
