@@ -44,7 +44,6 @@ const Select = ({ label, name, value, onChange, options, required = true }) => (
 );
 
 const RegisteredStudent = () => {
-  // Component state for form data
   const [formData, setFormData] = useState({
     studentId: '',
     name: '',
@@ -57,34 +56,39 @@ const RegisteredStudent = () => {
   });
 
   const [counselors, setCounselors] = useState([]);
-  const departments = ['Computing', 'Science'];
+  const [departments, setDepartments] = useState([]);
 
-  // Fetch counselors from the API on component mount
   useEffect(() => {
-    const fetchCounselors = async () => {
+    const fetchData = async () => {
       try {
-        const res = await axios.get('http://localhost:8080/api/counselors');
-        const counselorList = Array.isArray(res.data) ? res.data : res.data.counselors || [];
+        const [counselorsRes, studentsRes] = await Promise.all([
+          axios.get('http://localhost:8080/api/counselors'),
+          axios.get('http://localhost:8080/api/students')
+        ]);
+        
+        const counselorList = Array.isArray(counselorsRes.data) ? counselorsRes.data : counselorsRes.data.counselors || [];
         setCounselors(counselorList);
+
+        const studentList = Array.isArray(studentsRes.data) ? studentsRes.data : [];
+        const uniqueDepartments = [...new Set(studentList.map(student => student.department))].filter(Boolean);
+        setDepartments(uniqueDepartments);
+
       } catch (err) {
-        console.error('Error fetching counselors:', err);
-        toast.error('Failed to load counselors. Please try again later.');
+        console.error('Error fetching data:', err);
+        toast.error('Failed to load data. Please try again later.');
       }
     };
-    fetchCounselors();
+    fetchData();
   }, []);
 
-  // Handler for all form input changes
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Handler for form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Prepare student data for API call
     const studentData = {
       ...formData,
       yearLevel: parseInt(formData.yearLevel),
@@ -95,7 +99,6 @@ const RegisteredStudent = () => {
     try {
       await axios.post('http://localhost:8080/api/students/register', studentData);
       toast.success('Student registered successfully!');
-      // Reset form to its initial state
       setFormData({
         studentId: '',
         name: '',
@@ -108,7 +111,6 @@ const RegisteredStudent = () => {
       });
     } catch (err) {
       console.error('Error registering student:', err);
-      // Display a specific error message from the API or a generic one
       const errorMessage = err.response?.data?.message || 'Registration failed. Please check the form and try again.';
       toast.error(errorMessage);
     }
@@ -119,7 +121,6 @@ const RegisteredStudent = () => {
       <div className="max-w-4xl w-full space-y-8 p-10 bg-white rounded-xl shadow-lg">
         <ToastContainer position="top-right" autoClose={3000} />
         
-        {/* Header Section */}
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             Register New Student
@@ -129,7 +130,6 @@ const RegisteredStudent = () => {
           </p>
         </div>
 
-        {/* Registration Form */}
         <form onSubmit={handleSubmit} className="mt-8 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Input label="Student ID" name="studentId" value={formData.studentId} onChange={handleChange} />

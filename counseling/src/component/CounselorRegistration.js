@@ -1,10 +1,48 @@
-import React, { useState } from "react";
-import { UserPlus, Loader2 } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { UserPlus, Loader2, ChevronDown } from "lucide-react";
 import axios from "axios";
 import { toast, ToastContainer } from "react-toastify";
+import 'react-toastify/dist/ReactToastify.css';
 
-// This component provides a sleek and modern form for registering a new counselor.
-// The design uses a clean card layout with smooth transitions and clear user feedback.
+// Reusable Input component with a professional, consistent style
+const Input = ({ label, name, value, onChange, type = 'text', required = true }) => (
+  <div>
+    <label htmlFor={name} className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
+    <input
+      id={name}
+      type={type}
+      name={name}
+      value={value}
+      onChange={onChange}
+      className="w-full border border-gray-300 rounded-full px-4 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+      required={required}
+    />
+  </div>
+);
+
+// Reusable Select component for dropdowns
+const Select = ({ label, name, value, onChange, options, required = true }) => (
+  <div className="relative">
+    <label htmlFor={name} className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
+    <select
+      id={name}
+      name={name}
+      value={value}
+      onChange={onChange}
+      className="w-full border border-gray-300 rounded-full px-4 py-2 pr-10 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors bg-white appearance-none"
+      required={required}
+    >
+      <option value="" disabled>Select {label}</option>
+      {options.map(option => (
+        <option key={option} value={option}>{option}</option>
+      ))}
+    </select>
+    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pt-6 pointer-events-none">
+        <ChevronDown className="h-5 w-5 text-gray-400" />
+    </div>
+  </div>
+);
+
 function CounselorRegistration() {
   const [formData, setFormData] = useState({
     name: "",
@@ -13,7 +51,25 @@ function CounselorRegistration() {
     maxCaseload: "",
     department: "",
   });
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Fetch departments from the API on component mount
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const res = await axios.get('http://localhost:8080/api/students');
+        const studentList = Array.isArray(res.data) ? res.data : [];
+        // Extract and filter unique, non-empty department names
+        const uniqueDepartments = [...new Set(studentList.map(student => student.department))].filter(Boolean);
+        setDepartments(uniqueDepartments);
+      } catch (err) {
+        console.error('Error fetching departments:', err);
+        toast.error('Failed to load departments.');
+      }
+    };
+    fetchDepartments();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -54,17 +110,11 @@ function CounselorRegistration() {
   };
 
   return (
-    // Main container with a subtle background color
     <div className="min-h-screen bg-gray-100 py-10 px-4 sm:px-6 lg:px-8">
-      {/* Link to the react-toastify CSS stylesheet from a CDN to fix the import error. */}
-      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/react-toastify@9.1.1/dist/ReactToastify.min.css" />
-
-      {/* Toast notifications container */}
       <ToastContainer position="bottom-right" autoClose={3000} />
       
       <div className="max-w-3xl mx-auto bg-white rounded-3xl shadow-xl p-8 border border-gray-200">
         
-        {/* Header section with an icon and title */}
         <div className="flex items-center space-x-6 mb-8 border-b pb-6">
           <div className="p-4 bg-indigo-50 rounded-full">
             <UserPlus className="h-8 w-8 text-indigo-600" />
@@ -75,86 +125,26 @@ function CounselorRegistration() {
           </div>
         </div>
 
-        {/* The registration form */}
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
-            {/* Full Name Input */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Full Name
-              </label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                className="w-full border-gray-300 rounded-full shadow-sm px-4 py-2 focus:border-indigo-500 focus:ring-indigo-500 transition-colors"
-                required
-              />
-            </div>
+            <Input label="Full Name" name="name" value={formData.name} onChange={handleChange} />
+            <Input label="Email Address" name="email" type="email" value={formData.email} onChange={handleChange} />
+            <Input label="Password" name="password" type="password" value={formData.password} onChange={handleChange} />
+            <Input label="Max Caseload" name="maxCaseload" type="number" value={formData.maxCaseload} onChange={handleChange} />
 
-            {/* Email Input */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Email Address
-              </label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                className="w-full border-gray-300 rounded-full shadow-sm px-4 py-2 focus:border-indigo-500 focus:ring-indigo-500 transition-colors"
-                required
-              />
-            </div>
-            
-            {/* Password Input */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Password
-              </label>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                className="w-full border-gray-300 rounded-full shadow-sm px-4 py-2 focus:border-indigo-500 focus:ring-indigo-500 transition-colors"
-                required
-              />
-            </div>
-
-            {/* Max Caseload Input */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Max Caseload
-              </label>
-              <input
-                type="number"
-                name="maxCaseload"
-                value={formData.maxCaseload}
-                onChange={handleChange}
-                className="w-full border-gray-300 rounded-full shadow-sm px-4 py-2 focus:border-indigo-500 focus:ring-indigo-500 transition-colors"
-              />
-            </div>
-
-            {/* Department Input */}
+            {/* Department Select dropdown with dynamic options */}
             <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Department
-              </label>
-              <input
-                type="text"
+              <Select
+                label="Department"
                 name="department"
                 value={formData.department}
                 onChange={handleChange}
-                className="w-full border-gray-300 rounded-full shadow-sm px-4 py-2 focus:border-indigo-500 focus:ring-indigo-500 transition-colors"
+                options={departments}
               />
             </div>
-
           </div>
 
-          {/* Submit button with loading state */}
           <div className="pt-4">
             <button
               type="submit"

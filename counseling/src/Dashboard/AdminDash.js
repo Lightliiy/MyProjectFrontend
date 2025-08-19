@@ -16,6 +16,7 @@ import {
   BarChart2,
   ClipboardList,
   CheckCircle,
+  Bell,
 } from "lucide-react";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -168,8 +169,6 @@ function Dashboard() {
         />
       </div>
 
-      ---
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Cases by Status Chart */}
         <div className="bg-white p-8 rounded-2xl shadow-lg">
@@ -287,9 +286,45 @@ function Sidebar({ isOpen, toggleSidebar, activePage, setActivePage }) {
 }
 
 
-function Header({ toggleSidebar, onLogout, sidebarOpen }) {
+function Header({ sidebarOpen, toggleSidebar, onLogout }) {
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [notifications, setNotifications] = useState([]);
+  const [openDropdown, setOpenDropdown] = useState(false);
+  const navigate = useNavigate();
+
+  // Fetch requests from backend
+  const fetchNotifications = async () => {
+    try {
+      const res = await axios.get("http://localhost:8080/api/change-requests");
+      const pending = res.data.filter((r) => r.status === "PENDING");
+      setNotifications(pending);
+      setNotificationCount(pending.length);
+    } catch (err) {
+      console.error("Error fetching notifications", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 10000); // refresh every 10s
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleNotificationClick = () => {
+    setOpenDropdown(!openDropdown);
+  };
+
+  const goToRequests = () => {
+    setOpenDropdown(false);
+    navigate("/admin"); // redirect to ChangeRequests page
+  };
+
   return (
-    <header className={`bg-white shadow-md fixed top-0 left-0 right-0 h-16 flex items-center z-40 transition-all duration-300 ${sidebarOpen ? "pl-64" : "pl-20"}`}>
+    <header
+      className={`bg-white shadow-md fixed top-0 left-0 right-0 h-16 flex items-center z-40 transition-all duration-300 ${
+        sidebarOpen ? "pl-64" : "pl-20"
+      }`}
+    >
       <div className="flex items-center justify-between w-full px-6">
         <button
           onClick={toggleSidebar}
@@ -298,14 +333,58 @@ function Header({ toggleSidebar, onLogout, sidebarOpen }) {
         >
           <Menu className="h-6 w-6" />
         </button>
+
         <div className="flex-grow"></div>
         <div className="flex items-center space-x-4">
+          {/* 🔔 Notification Bell Button */}
+          <div className="relative">
+            <button
+              onClick={handleNotificationClick}
+              className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none"
+              aria-label="Notifications"
+            >
+              <Bell className="h-6 w-6" />
+            </button>
+            {notificationCount > 0 && (
+              <span className="absolute top-1 right-1 transform translate-x-1/2 -translate-y-1/2 flex items-center justify-center h-4 w-4 rounded-full bg-red-500 text-white text-xs font-bold">
+                {notificationCount}
+              </span>
+            )}
+
+            {/* Dropdown */}
+            {openDropdown && (
+              <div className="absolute right-0 mt-2 w-72 bg-white border rounded-lg shadow-lg z-50">
+                <div className="p-3 border-b font-semibold">Notifications</div>
+                {notifications.length === 0 ? (
+                  <div className="p-3 text-gray-500 text-sm">No new requests</div>
+                ) : (
+                  <ul>
+                    {notifications.map((req) => (
+                      <li
+                        key={req.id}
+                        className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                        onClick={goToRequests}
+                      >
+                        {req.student?.name} requested counselor change
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 👤 Admin Profile */}
           <div className="flex items-center space-x-2">
             <div className="h-9 w-9 rounded-full bg-indigo-100 flex items-center justify-center">
               <User className="h-5 w-5 text-indigo-600" />
             </div>
-            <span className="font-medium text-gray-800 hidden sm:block">Admin</span>
+            <span className="font-medium text-gray-800 hidden sm:block">
+              Admin
+            </span>
           </div>
+
+          {/* 🚪 Logout */}
           <button
             onClick={onLogout}
             className="flex items-center space-x-2 text-sm text-red-600 font-semibold px-3 py-2 rounded-md hover:bg-red-50 transition-colors"

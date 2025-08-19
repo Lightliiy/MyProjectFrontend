@@ -39,7 +39,7 @@ function Login({ onLogin }) {
           navigate(`/dashboard/${userRole.toLowerCase()}`);
         }, 1700);
       } else {
-        toast.error(`Login failed: invalid user data`, {
+        toast.error(`Login failed: user is not authorized`, {
           position: "top-right",
         });
       }
